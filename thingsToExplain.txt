@@ -1,0 +1,11 @@
+If these are the variant alleles
+
+REF: ACGT
+A1 : T_CG
+A2 : TTCG
+
+.. and the transcript goes from 1 - 3, i.e. covering REF = ACG
+
+... then we will cut down the alternative alleles accordingly:
+	A1: T_C
+	A2: TTC
