@@ -87,7 +87,7 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 		{
 			assert(nucleotides.size() == interesting.size());
 			assert(nucleotidePart.size() == nucleotidePart_interesting.size());
-			assert(countCharacters_noGaps(nucleotides) == nucleotidePart_nonGap);
+			assert(countCharacters_noGaps(nucleotides) == nucleotidePart_nonGap); // paranoid
 
 			nucleotidePart.insert(nucleotidePart.end(), nucleotides.begin(), nucleotides.end());
 			nucleotidePart_interesting.insert(nucleotidePart_interesting.end(), interesting.begin(), interesting.end());
@@ -98,22 +98,28 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 			while(nucleotidePart_nonGap >= 3)
 			{
 				std::string codon; codon.reserve(3);
+				bool codon_interesting = false;
 				int consumedIndex_inNucleotidePart = 0;
 				while(codon.length() < 3)
 				{
 					unsigned char charForConsumption = nucleotidePart.at(consumedIndex_inNucleotidePart);
+					codon_interesting = (codon_interesting || nucleotidePart_interesting.at(consumedIndex_inNucleotidePart));
 					consumedIndex_inNucleotidePart++;
 					if((charForConsumption != '-') && (charForConsumption != '_'))
 					{
 						codon.push_back(charForConsumption);
 					}
 				}
-				nucleotidePart = nucleotidePart.substr(consumedIndex_inNucleotidePart);
-				nucleotidePart_interesting = std::vector<bool>(nucleotidePart_interesting.begin()+consumedIndex_inNucleotidePart, nucleotidePart_interesting.end());
+
+				// translate codon -> AA part
+				// translate nucleotide interesting -> AA
+				bool haveRemainder = (consumedIndex_inNucleotidePart < nucleotidePart.size());
+				nucleotidePart = haveRemainder ? nucleotidePart.substr(consumedIndex_inNucleotidePart) : "";
+				nucleotidePart_interesting = haveRemainder ? std::vector<bool>(nucleotidePart_interesting.begin()+consumedIndex_inNucleotidePart, nucleotidePart_interesting.end()) : std::vector<bool>();
 				nucleotidePart_nonGap -= 3;
 
 				assert(nucleotidePart.size() == nucleotidePart_interesting.size());
-				assert(countCharacters_noGaps(nucleotides) == nucleotidePart_nonGap);
+				assert(countCharacters_noGaps(nucleotides) == nucleotidePart_nonGap); // paranoid
 			}
 
 		}

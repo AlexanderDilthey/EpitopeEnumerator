@@ -41,4 +41,5 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 std::vector<transcript> readTranscripts(std::string transcriptsFile);
 unsigned int countCharacters_noGaps(const std::string& S);
 
+std::string translateCodon2AA(const std::string& codon);
 #endif /* READFILES_H_ */

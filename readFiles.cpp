@@ -10,6 +10,8 @@
 #include <iostream>
 #include <fstream>
 #include <assert.h>
+#include <stdexcept>
+#include <exception>
 
 std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF)
 {
@@ -209,3 +211,85 @@ unsigned int countCharacters_noGaps(const std::string& S)
 	}
 	return forReturn;
 }
+
+std::map<std::string, std::string> codon2AA;
+std::string translateCodon2AA(const std::string& codon)
+{
+	assert(codon.length() == 3);
+	if(codon2AA.size() == 0)
+	{
+		codon2AA["CCT"] = "P";
+		codon2AA["CAC"] = "H";
+		codon2AA["CTG"] = "L";
+		codon2AA["CAG"] = "Q";
+		codon2AA["GGA"] = "G";
+		codon2AA["CGG"] = "R";
+		codon2AA["TAT"] = "Y";
+		codon2AA["GAT"] = "D";
+		codon2AA["ATT"] = "I";
+		codon2AA["AAC"] = "N";
+		codon2AA["CCG"] = "P";
+		codon2AA["TCC"] = "S";
+		codon2AA["CGA"] = "R";
+		codon2AA["GTG"] = "V";
+		codon2AA["GTC"] = "V";
+		codon2AA["CTA"] = "L";
+		codon2AA["AAG"] = "K";
+		codon2AA["CGT"] = "R";
+		codon2AA["TTA"] = "L";
+		codon2AA["AAT"] = "N";
+		codon2AA["ACA"] = "T";
+		codon2AA["GGT"] = "G";
+		codon2AA["GGC"] = "G";
+		codon2AA["GCC"] = "A";
+		codon2AA["GCA"] = "A";
+		codon2AA["GAG"] = "E";
+		codon2AA["CAT"] = "H";
+		codon2AA["TGT"] = "C";
+		codon2AA["ATG"] = "M";
+		codon2AA["ATC"] = "I";
+		codon2AA["TTC"] = "F";
+		codon2AA["TTT"] = "F";
+		codon2AA["CAA"] = "Q";
+		codon2AA["AGC"] = "S";
+		codon2AA["TGG"] = "W";
+		codon2AA["GCT"] = "A";
+		codon2AA["GAC"] = "D";
+		codon2AA["CGC"] = "R";
+		codon2AA["CCC"] = "P";
+		codon2AA["TTG"] = "L";
+		codon2AA["ACT"] = "T";
+		codon2AA["ATA"] = "I";
+		codon2AA["AGA"] = "R";
+		codon2AA["AGT"] = "S";
+		codon2AA["CTT"] = "L";
+		codon2AA["GCG"] = "A";
+		codon2AA["AGG"] = "R";
+		codon2AA["AAA"] = "K";
+		codon2AA["ACG"] = "T";
+		codon2AA["TGA"] = "!";
+		codon2AA["CCA"] = "P";
+		codon2AA["GTT"] = "V";
+		codon2AA["GGG"] = "G";
+		codon2AA["TCG"] = "S";
+		codon2AA["GTA"] = "V";
+		codon2AA["TCA"] = "S";
+		codon2AA["CTC"] = "L";
+		codon2AA["TGC"] = "C";
+		codon2AA["TAC"] = "Y";
+		codon2AA["GAA"] = "E";
+		codon2AA["TAG"] = "!";
+		codon2AA["ACC"] = "T";
+		codon2AA["TAA"] = "!";
+		codon2AA["TCT"] = "S";
+	}
+
+	if(codon2AA.count(codon) == 0)
+	{
+		throw std::runtime_error("Codon "+codon+" undefined.");
+	}
+
+	return codon2AA.at(codon);
+}
+
+
