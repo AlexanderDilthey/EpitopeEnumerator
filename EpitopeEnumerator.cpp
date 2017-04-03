@@ -21,7 +21,7 @@
 using namespace std;
 
 std::vector<transcript> getPlusStrandTranscripts(const std::vector<transcript>& transcripts);
-void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus);
+void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
 std::pair<std::string, std::vector<std::string>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int lastReferencePos);
 
 int main(int argc, char *argv[]) {
@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
 	std::map<std::string, std::string> arguments;
 
 	arguments["referenceGenome"] = "data/GRCh38_full_analysis_set_plus_decoy_hla.fa.chr20";
-	arguments["normalVCF"] = "data/NA12878.vcf.chr21";
+	arguments["normalVCF"] = "data/NA12878.vcf.chr20";
 	arguments["transcripts"] = "data/gencode.v26.annotation.gff3";
 
 	for(unsigned int i = 0; i < ARG.size(); i++)
@@ -45,24 +45,57 @@ int main(int argc, char *argv[]) {
 
 	std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
 
-	assert( 4 == 5 );
-
 	std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"));
-
-	assert( 2 == 4 );
 
 	std::map<std::string, std::string> referenceGenome = Utilities::readFASTA(arguments.at("referenceGenome"));
 
 	std::vector<transcript> transcripts_plus = getPlusStrandTranscripts(transcripts);
 
-	enumeratePeptides(referenceGenome, transcripts_plus, variants);
+	for(const transcript& t : transcripts_plus)
+	{
+		std::string t_referenceSequence;
+		for(const transcriptExon& e : t.exons)
+		{
+			if(e.valid)
+			{
+				if(referenceGenome.count(t.chromosomeID) == 0)
+				{
+					std::cerr << "Unknown chromosome ID: "+t.chromosomeID << "\n" << std::flush;
+					throw std::runtime_error("Unknown chromosome ID: "+t.chromosomeID);
+				}
+				const std::string& chromosomeSequence = referenceGenome.at(t.chromosomeID);
+				assert(e.firstPos <= e.lastPos);
+				assert(e.firstPos >= 0);
+				assert(e.lastPos < chromosomeSequence.length());
 
-	assert("Are the GFF stop coordinates inclusive?" == "");
+				t_referenceSequence += referenceGenome.at(t.chromosomeID).substr(e.firstPos, e.lastPos - e.firstPos + 1);
+			}
+		}
+		std::string translation;
+		assert((t_referenceSequence.length() % 3) == 0);
+		for(unsigned int i = 0; i < t_referenceSequence.length(); i += 3)
+		{
+			std::string codon = t_referenceSequence.substr(i, 3);
+			assert(codon.length() == 3);
+			translation += translateCodon2AA(codon);
+		}
+		if(translation.back() != '!')
+		{
+			// std::cout << t.transcriptID << " " << translation << "\n" << std::flush;
+		}
+		// assert(translation.back() == '!');
+	}
+
+	// assert("Are the GFF stop coordinates inclusive?" == "");
+
+
+	enumeratePeptides(referenceGenome, transcripts_plus, variants, true);
+
 
 	return 0;
 }
 
-void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus)
+void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour)
 {
 	class runningHaplotype {
 	public:
@@ -83,11 +116,11 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 			canExtendFurther = true;
 		}
 
-		void extendWithNucleotides(const std::string& nucleotides, const std::vector<bool> interesting)
+		void extendWithNucleotides(const std::string& nucleotides, const std::vector<bool>& interesting)
 		{
 			assert(nucleotides.size() == interesting.size());
 			assert(nucleotidePart.size() == nucleotidePart_interesting.size());
-			assert(countCharacters_noGaps(nucleotides) == nucleotidePart_nonGap); // paranoid
+			assert(countCharacters_noGaps(nucleotidePart) == nucleotidePart_nonGap); // paranoid
 
 			nucleotidePart.insert(nucleotidePart.end(), nucleotides.begin(), nucleotides.end());
 			nucleotidePart_interesting.insert(nucleotidePart_interesting.end(), interesting.begin(), interesting.end());
@@ -109,19 +142,24 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 					{
 						codon.push_back(charForConsumption);
 					}
+					assert(consumedIndex_inNucleotidePart <= nucleotidePart.size());
 				}
 
 				// translate codon -> AA part
+				AApart.append(translateCodon2AA(codon));
+				AApart_interesting.push_back(codon_interesting);
+
 				// translate nucleotide interesting -> AA
-				bool haveRemainder = (consumedIndex_inNucleotidePart < nucleotidePart.size());
+				bool haveRemainder = (consumedIndex_inNucleotidePart < (int)nucleotidePart.size());
 				nucleotidePart = haveRemainder ? nucleotidePart.substr(consumedIndex_inNucleotidePart) : "";
 				nucleotidePart_interesting = haveRemainder ? std::vector<bool>(nucleotidePart_interesting.begin()+consumedIndex_inNucleotidePart, nucleotidePart_interesting.end()) : std::vector<bool>();
 				nucleotidePart_nonGap -= 3;
 
 				assert(nucleotidePart.size() == nucleotidePart_interesting.size());
-				assert(countCharacters_noGaps(nucleotides) == nucleotidePart_nonGap); // paranoid
+				//std::cout << nucleotides << "\n";
+				//std::cout << nucleotidePart_nonGap << "\n\n" << std::flush;
+				assert((int)countCharacters_noGaps(nucleotidePart) == nucleotidePart_nonGap); // paranoid
 			}
-
 		}
 	};
 
@@ -138,7 +176,8 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 		// to make sure that the exons go from left to right
 		for(int exonI = 1; exonI < exons; exonI++)
 		{
-			assert(transcript.exons.at(exonI-1).lastPos < transcript.exons.at(exonI-1).firstPos);
+			if(transcript.exons.at(exonI-1).valid)
+				assert(transcript.exons.at(exonI-1).firstPos <= transcript.exons.at(exonI-1).lastPos);
 		}
 
 		runningHaplotype referenceHaplotype;
@@ -146,29 +185,45 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 		std::vector<runningHaplotype> sampleHaplotypes = {firstHaplotype};
 
 
-		auto doExtension = [&](std::string referenceSequence, std::vector<std::string> sampleAlleles) -> void {
-			referenceHaplotype.extendWithNucleotides(referenceSequence);
+		auto doExtension = [&](std::string referenceSequence, std::vector<std::string> sampleAlleles, std::vector<bool> sampleAlleles_interesting) -> void {
+			assert(sampleAlleles.size() == sampleAlleles_interesting.size());
+			std::vector<bool> referenceSequence_interesting;
+			referenceSequence_interesting.resize(referenceSequence.length(), false);
+			referenceHaplotype.extendWithNucleotides(referenceSequence, referenceSequence_interesting);
 			size_t existingSampleHaplotypes_maxI = sampleHaplotypes.size();
+
+			std::vector<std::vector<bool>> sampleAlleles_perCharacter_interesting;
+			sampleAlleles_perCharacter_interesting.reserve(sampleAlleles.size());
+			for(const std::string& oneSampleAllele : sampleAlleles)
+			{
+				std::vector<bool> oneSampleAllele_interesting;
+				oneSampleAllele_interesting.resize(oneSampleAllele.length(), false);
+				sampleAlleles_perCharacter_interesting.push_back(oneSampleAllele_interesting);
+			}
 			if(sampleAlleles.size() == 1)
 			{
 				for(unsigned int existingHaplotypeI = 0; existingHaplotypeI < existingSampleHaplotypes_maxI; existingHaplotypeI++)
 				{
-					sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0));
+					sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0), sampleAlleles_perCharacter_interesting.at(0));
 				}
 			}
 			else
 			{
+				std::cout << "!" << std::flush;
 				for(unsigned int existingHaplotypeI = 0; existingHaplotypeI < existingSampleHaplotypes_maxI; existingHaplotypeI++)
 				{
 					runningHaplotype preExtension = sampleHaplotypes.at(existingHaplotypeI);
-					sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0));
+					sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0), sampleAlleles_perCharacter_interesting.at(0));
 					for(unsigned int sampleAlleleI = 1; sampleAlleleI < sampleAlleles.size(); sampleAlleleI++)
 					{
 						sampleHaplotypes.push_back(preExtension);
-						sampleHaplotypes.back().extendWithNucleotides(sampleAlleles.at(sampleAlleleI));
+						sampleHaplotypes.back().extendWithNucleotides(sampleAlleles.at(sampleAlleleI), sampleAlleles_perCharacter_interesting.at(sampleAlleleI));
 					}
 				}
 			}
+
+			if(sampleHaplotypes.size() > 1)
+				std::cout << "sampleHaplotypes.size()" << ": " << sampleHaplotypes.size() << "\n" << std::flush;
 		};
 
 		//std::string collectedReferenceSequence;
@@ -177,13 +232,32 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 		for(int exonI = 0; exonI < exons; exonI++)
 		{
 			const transcriptExon& exon = transcript.exons.at(exonI);
+			if(exon.valid == false)
+				continue;
+
 			for(unsigned int referencePos = exon.firstPos; referencePos <= exon.lastPos; referencePos++)
 			{
 				if(variants_plus.count(chromosomeID) && variants_plus.at(chromosomeID).count(referencePos))
 				{
 					std::pair<std::string, std::vector<std::string>> reference_and_variantAlleles = get_reference_and_variantAlleles(variants_plus.at(chromosomeID).at(referencePos), exon.lastPos);
 
-					doExtension(reference_and_variantAlleles.first, reference_and_variantAlleles.second);
+					std::vector<bool> extendWith_interesting;
+					if(isTumour)
+					{
+						extendWith_interesting.reserve(reference_and_variantAlleles.second.size());
+						for(const std::string& sampleAllele : reference_and_variantAlleles.second)
+						{
+							extendWith_interesting.push_back(!(sampleAllele == reference_and_variantAlleles.first));
+						}
+					}
+					else
+					{
+						extendWith_interesting.resize(reference_and_variantAlleles.second.size(), false);
+					}
+
+					std::cout << "V: " << reference_and_variantAlleles.second.size() << "\n" << std::flush;
+
+					doExtension(reference_and_variantAlleles.first, reference_and_variantAlleles.second, extendWith_interesting);
 
 					int reference_extension_length_noGaps = countCharacters_noGaps(reference_and_variantAlleles.first);
 					referencePos += (reference_extension_length_noGaps - 1);
@@ -192,12 +266,11 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 				{
 					std::string referenceCharacter = referenceGenome_plus.at(chromosomeID).substr(referencePos, 1);
 					std::vector<std::string> extendWith = {referenceCharacter};
-
-					doExtension(referenceCharacter, extendWith);
+					std::vector<bool> extendWith_interesting = {false};
+					doExtension(referenceCharacter, extendWith, extendWith_interesting);
 				}
 			}
 		}
-
 	}
 }
 

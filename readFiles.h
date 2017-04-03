@@ -24,8 +24,13 @@ public:
 
 class transcriptExon {
 public:
+	bool valid;
 	unsigned int firstPos;
 	unsigned int lastPos;
+	transcriptExon()
+	{
+		valid = false;
+	}
 };
 
 class transcript {
@@ -42,4 +47,7 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile);
 unsigned int countCharacters_noGaps(const std::string& S);
 
 std::string translateCodon2AA(const std::string& codon);
+
+void extendAsNecessary(std::string& S, unsigned int desiredLength);
+
 #endif /* READFILES_H_ */

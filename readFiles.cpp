@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <stdexcept>
 #include <exception>
+#include <set>
 
 std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF)
 {
@@ -69,14 +70,27 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 				std::vector<std::string> thisSample_alleles = ((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) ? thisSample_alleles_unphased : thisSample_alleles_phased;
 				assert(thisSample_alleles.size() == 2);
 
-				for(std::string a : thisSample_alleles_unphased)
+				for(std::string a : thisSample_alleles)
 				{
 					int a_numeric = Utilities::StrtoI(a);
 					assert(number_2_allele.count(a_numeric));
 					thisVariant.sampleAlleles.push_back(number_2_allele.at(a_numeric));
 				}
 
+				unsigned int maxLength = thisVariant.referenceString.length();
+				for(auto a : thisVariant.sampleAlleles)
+				{
+					if(maxLength < a.length())
+						maxLength = a.length();
+				}
+
+				extendAsNecessary(thisVariant.referenceString, maxLength);
+				for(std::string& a : thisVariant.sampleAlleles)
+				{
+					extendAsNecessary(a, maxLength);
+				}
 				assert(forReturn[thisVariant.chromosomeID].count(thisVariant.position) == 0);
+				assert(thisVariant.sampleAlleles.size() == 2);
 				forReturn[thisVariant.chromosomeID][thisVariant.position] = thisVariant;
 				read_variants++;
 			}
@@ -98,6 +112,7 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 
 	std::map<std::string, transcript> transcript_storage;
 	std::map<std::string, std::map<int, transcriptExon>> exons_per_transcript;
+	std::set<std::string> ignored_transcriptIDs;
 
 	long long lineI = -1;
 	while(inputStream.good())
@@ -109,7 +124,7 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 		if(line.length())
 		{
 			std::vector<std::string> line_fields = Utilities::split(line, "\t");
-			if(line_fields.at(0) != "chr21") // todo remove
+			if(line_fields.at(0) != "chr20") // todo remove
 				continue;
 
 			if(line_fields.at(2) != "CDS")
@@ -138,11 +153,27 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 				geneName = dataFields.at("gene_name");
 			}
 
+			if((line.find("cds_end_NF") != std::string::npos) || (line.find("cds_start_NF") != std::string::npos))
+			{
+				ignored_transcriptIDs.insert(ID);
+				continue;
+			}
+
+			if(dataFields.count("transcript_type"))
+			{
+				if(dataFields.at("transcript_type") != "protein_coding")
+				{
+					ignored_transcriptIDs.insert(ID);
+					continue;
+				}
+			}
+
 			if(dataFields.count("gene_type"))
 			{
 				if(dataFields.at("gene_type") != "protein_coding")
 				{
 					std::cerr << "Warning - gene_type for CDS is " << dataFields.at("gene_type") << " (in file " << transcriptsFile << ", line " << lineI << ")\n" << std::flush;
+					ignored_transcriptIDs.insert(ID);
 					continue;
 				}
 				assert(dataFields.at("gene_type") == "protein_coding");
@@ -178,24 +209,71 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 		}
 	}
 
+	size_t ignored_missingExons = 0;
+	size_t ignored_non3Dividable = 0;
 	std::vector<transcript> forReturn;
 	for(auto transcript_and_id : transcript_storage)
 	{
 		std::string transcriptID = transcript_and_id.first;
 		transcript transcriptCopy = transcript_and_id.second;
 		assert(exons_per_transcript.count(transcriptID));
-		unsigned int collectedExons = exons_per_transcript.at(transcriptID).size();
-		transcriptCopy.exons.resize(collectedExons);
-		for(unsigned int i = 0; i < collectedExons; i++)
+		unsigned int maxCollectedExon = 0;
+		for(auto eI : exons_per_transcript.at(transcriptID))
 		{
-			assert(exons_per_transcript.at(transcriptID).count(i));
-			transcriptCopy.exons.at(i) = exons_per_transcript.at(transcriptID).at(i);
+			if(eI.first > maxCollectedExon)
+				maxCollectedExon = eI.first;
+		}
+		transcriptCopy.exons.resize(maxCollectedExon);
+		bool allExonsOK = true;
+		size_t allExons_length = 0;
+		for(unsigned int i = 1; i <= maxCollectedExon; i++)
+		{
+			/*
+			if(!exons_per_transcript.at(transcriptID).count(i))
+			{
+				allExonsOK = false;
+				//std::cerr << "TranscriptID " << transcriptID << " exon " << i << " is missing. Have:\n";
+				for(auto e : exons_per_transcript.at(transcriptID))
+				{
+					//std::cerr << "\t" << e.first << "\n";
+				}
+				std::cerr << std::flush;
+			}
+			//assert(exons_per_transcript.at(transcriptID).count(i));
+			 *
+			 */
+			if(exons_per_transcript.at(transcriptID).count(i))
+			{
+				transcriptCopy.exons.at(i-1) = exons_per_transcript.at(transcriptID).at(i);
+				transcriptCopy.exons.at(i-1).valid = true;
+				allExons_length += (transcriptCopy.exons.at(i-1).lastPos - transcriptCopy.exons.at(i-1).firstPos + 1);
+			}
+			else
+			{
+
+			}
 		}
 
-		forReturn.push_back(transcriptCopy);
+		if(allExonsOK)
+		{
+			if((allExons_length % 3) == 0)
+			{
+				assert((allExons_length % 3) == 0);
+				forReturn.push_back(transcriptCopy);
+			}
+			else
+			{
+				ignored_non3Dividable++;
+			}
+		}
+		else
+		{
+			//std::cerr << "Missing exons: " << transcriptID << "\n";
+			ignored_missingExons++;
+		}
 	}
 
-	std::cout << "readTranscripts(..): Have " << forReturn.size() << " transcripts with " << read_exons << " exons.\n" << std::flush;
+	std::cout << "readTranscripts(..): Have " << forReturn.size() << " transcripts with " << read_exons << " exons; ignored because of missing exons " << ignored_missingExons << "; ignored because length not multiple of 3: " << ignored_non3Dividable << "; ignored because of other criteria: " << ignored_transcriptIDs.size() << ".\n" << std::flush;
 
 	return forReturn;
 }
@@ -292,4 +370,15 @@ std::string translateCodon2AA(const std::string& codon)
 	return codon2AA.at(codon);
 }
 
+void extendAsNecessary(std::string& S, unsigned int desiredLength)
+{
+	assert(S.length() <= desiredLength);
+	int missing = desiredLength - S.length();
+	if(missing > 0)
+	{
+		std::string append;
+		append.resize(missing, '-');
+		S.append(append);
+	}
 
+}

@@ -9,3 +9,10 @@ A2 : TTCG
 ... then we will cut down the alternative alleles accordingly:
 	A1: T_C
 	A2: TTC
+
+transcript_type/gene_type=protein_coding, nonsense_mediated_decay not used
+	https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3013145/
+	
+	Length % 3 != 0 also not used
+	
+	if((line.find("cds_end_NF") != std::string::npos) || (line.find("cds_start_NF") != std::string::npos))
