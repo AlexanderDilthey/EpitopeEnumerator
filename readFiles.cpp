@@ -271,6 +271,26 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 			//std::cerr << "Missing exons: " << transcriptID << "\n";
 			ignored_missingExons++;
 		}
+
+		/*
+
+		if(transcriptCopy.strand == '+')
+		{
+			int lastPos = -1;
+			for(transcriptExon e : transcriptCopy.exons)
+			{
+				if(e.valid)
+				{
+					if(lastPos != -1)
+					{
+						assert(e.firstPos > lastPos);
+					}
+					lastPos = e.lastPos;
+				}
+			}
+		}
+
+		*/
 	}
 
 	std::cout << "readTranscripts(..): Have " << forReturn.size() << " transcripts with " << read_exons << " exons; ignored because of missing exons " << ignored_missingExons << "; ignored because length not multiple of 3: " << ignored_non3Dividable << "; ignored because of other criteria: " << ignored_transcriptIDs.size() << ".\n" << std::flush;
