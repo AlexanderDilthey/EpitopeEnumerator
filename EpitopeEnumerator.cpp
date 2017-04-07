@@ -21,8 +21,11 @@
 using namespace std;
 
 std::vector<transcript> getPlusStrandTranscripts(const std::vector<transcript>& transcripts);
-void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
+//void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
 std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<std::vector<int>>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int startReferencePos, unsigned int lastReferencePos);
+
+void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
+void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
 
 std::set<int> peptideLengths = {8, 9, 10, 11, 15, 16};
 
@@ -100,7 +103,7 @@ int main(int argc, char *argv[]) {
 	// assert("Are the GFF stop coordinates inclusive?" == "");
 
 
-	enumeratePeptides(referenceGenome, transcripts_plus, variants, true);
+	enumeratePeptideHaplotypes(10, referenceGenome, transcripts_plus, variants, true);
 
 	assert(1 == 2);
 
@@ -110,6 +113,282 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
+void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour)
+{
+	for(unsigned int transcriptI = 0; transcriptI < transcripts_plus.size(); transcriptI++)
+	{
+		const transcript& transcript = transcripts_plus.at(transcriptI);
+		assert(transcript.strand == '+');
+		std::string chromosomeID = transcript.chromosomeID;
+		if(referenceGenome_plus.count(chromosomeID) == 0)
+			continue;
+
+		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, isTumour);
+	}
+
+}
+
+void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour)
+{
+	// validate exons - left to right, non-overlapping
+	int n_exons = transcript.exons.size();
+	// make sure that the exons go from left to right in a non-overlapping fashion
+	int lastValidExonI = -1;
+	for(int exonI = 0; exonI < n_exons; exonI++)
+	{
+		if(transcript.exons.at(exonI).valid)
+		{
+			assert(transcript.exons.at(exonI).firstPos <= transcript.exons.at(exonI).lastPos);
+			if(lastValidExonI != -1)
+			{
+				assert(transcript.exons.at(lastValidExonI).lastPos < transcript.exons.at(exonI).firstPos);
+			}
+			lastValidExonI = exonI;
+		}
+	}
+
+	// build sequenceFragments array
+	std::string referenceSequence_forControl;
+	std::vector<int> referenceSequence_forControl_referencePositions;
+	std::vector<std::vector<std::string>> sequenceFragments;
+	std::vector<std::vector<std::vector<int>>> sequenceFragments_referencePositions;
+	std::vector<std::vector<std::vector<bool>>> sequenceFragments_interesting;
+
+	auto addHomozygousStretch = [&](const std::string& sequence, const std::vector<int> referencePositions, const std::vector<bool>& interesting) -> void {
+		assert(sequence.size() == referencePositions.size());
+		assert(sequence.size() == interesting.size());
+
+		if(sequenceFragments.size() && (sequenceFragments.back().size() == 1))
+		{
+			sequenceFragments.back().at(0).append(sequence);
+			sequenceFragments_referencePositions.back().at(0).insert(sequenceFragments_referencePositions.back().at(0).end(), referencePositions.begin(), referencePositions.end());
+			sequenceFragments_interesting.back().at(0).insert(sequenceFragments_interesting.back().at(0).end(), interesting.begin(), interesting.end());
+		}
+		else
+		{
+			std::vector<std::string> homStretch = {sequence};
+			std::vector<std::vector<int>> homStretch_coordinates({referencePositions});
+			std::vector<std::vector<bool>> homStretch_interesting({interesting});
+
+			sequenceFragments.push_back(homStretch);
+			sequenceFragments_referencePositions.push_back(homStretch_coordinates);
+			sequenceFragments_interesting.push_back(homStretch_interesting);
+		}
+	};
+
+	auto addHeterozygousStretch = [&](const std::vector<std::string>& sequences, const std::vector<std::vector<int>> referencePositions, const std::vector<std::vector<bool>>& interesting) -> void {
+		assert(sequences.size() == 2);
+		assert(sequences.size() == referencePositions.size());
+		assert(sequences.size() == interesting.size());
+		for(unsigned int sI = 0; sI < sequences.size(); sI++)
+		{
+			assert(sequences.at(sI).size() == sequences.at(0).size());
+			assert(sequences.at(sI).size() == referencePositions.at(sI).size());
+			assert(sequences.at(sI).size() == interesting.at(sI).size());
+		}
+
+		sequenceFragments.push_back(sequences);
+		sequenceFragments_referencePositions.push_back(referencePositions);
+		sequenceFragments_interesting.push_back(interesting);
+	};
+
+	const std::string& chromosomeID = transcript.chromosomeID;
+	for(int exonI = 0; exonI < n_exons; exonI++)
+	{
+		const transcriptExon& exon = transcript.exons.at(exonI);
+		if(exon.valid == false)
+			continue;
+
+		for(unsigned int referencePos = exon.firstPos; referencePos <= exon.lastPos; referencePos++)
+		{
+			if(variants_plus.count(chromosomeID) && variants_plus.at(chromosomeID).count(referencePos))
+			{
+				std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<std::vector<int>>> reference_and_variantAlleles = get_reference_and_variantAlleles(variants_plus.at(chromosomeID).at(referencePos), referencePos, exon.lastPos);
+
+				assert(std::get<2>(reference_and_variantAlleles).size() == 2);
+				bool homozygous = (std::get<2>(reference_and_variantAlleles).at(0) == std::get<2>(reference_and_variantAlleles).at(1)) && (std::get<3>(reference_and_variantAlleles).at(0) == std::get<3>(reference_and_variantAlleles).at(1));
+
+				// this is not really very interesting
+				std::vector<std::vector<bool>> extendWith_interesting;
+				for(const std::string& sampleAllele : std::get<2>(reference_and_variantAlleles))
+				{
+					if(isTumour)
+					{
+						std::vector<bool> potentiallyInteresting;
+						potentiallyInteresting.resize(sampleAllele.size(), sampleAllele != std::get<0>(reference_and_variantAlleles));
+						extendWith_interesting.push_back(potentiallyInteresting);
+					}
+					else
+					{
+						std::vector<bool> notInteresting;
+						notInteresting.resize(sampleAllele.size(), false);
+						extendWith_interesting.push_back(notInteresting);
+					}
+				}
+
+				if(homozygous)
+				{
+					addHomozygousStretch(std::get<2>(reference_and_variantAlleles).at(0),  std::get<3>(reference_and_variantAlleles).at(0), extendWith_interesting.at(0));
+				}
+				else
+				{
+					addHeterozygousStretch(std::get<2>(reference_and_variantAlleles), std::get<3>(reference_and_variantAlleles), extendWith_interesting);
+				}
+
+				referenceSequence_forControl.append(std::get<0>(reference_and_variantAlleles));
+				referenceSequence_forControl_referencePositions.insert(referenceSequence_forControl_referencePositions.end(), std::get<1>(reference_and_variantAlleles).begin(), std::get<1>(reference_and_variantAlleles).end());
+				int reference_extension_length_noGaps = countCharacters_noGaps(std::get<0>(reference_and_variantAlleles));
+				referencePos += (reference_extension_length_noGaps - 1);
+			}
+			else
+			{
+				std::string referenceCharacter = referenceGenome_plus.at(chromosomeID).substr(referencePos, 1);
+				addHomozygousStretch(referenceCharacter, std::vector<int>({(int)referencePos}), std::vector<bool>({false}));
+				referenceSequence_forControl.append(referenceCharacter);
+				referenceSequence_forControl_referencePositions.push_back(referencePos);
+
+			}
+		}
+	}
+
+	// sanity checks
+	size_t totalLength = 0;
+	int n_fragments_diploid = 0;
+	int lastStretchStop = -1;
+	std::vector<std::pair<unsigned int, unsigned int>> stretchBoundaries;
+	int first_heterozygous_position = -2;
+	for(unsigned int stretchI = 0; stretchI < sequenceFragments.size(); stretchI++)
+	{
+		if(stretchI > 0)
+		{
+			if(sequenceFragments.at(stretchI).size() == 1)
+			{
+				assert(sequenceFragments.at(stretchI-1).size() != 1);
+			}
+		}
+
+		assert((sequenceFragments.at(stretchI).size() == 2) || (sequenceFragments.at(stretchI).size() == 1));
+		assert(sequenceFragments.at(stretchI).size() == sequenceFragments_referencePositions.at(stretchI).size());
+		assert(sequenceFragments.at(stretchI).size() == sequenceFragments_interesting.at(stretchI).size());
+		for(unsigned int sI = 0; sI < sequenceFragments.at(stretchI).size(); sI++)
+		{
+			assert(sequenceFragments.at(stretchI).at(sI).size() == sequenceFragments_referencePositions.at(stretchI).at(sI).size());
+			assert(sequenceFragments.at(stretchI).at(sI).size() == sequenceFragments_interesting.at(stretchI).at(sI).size());
+		}
+		totalLength += sequenceFragments.at(stretchI).at(0).size();
+
+		if(sequenceFragments.at(stretchI).size() == 2)
+		{
+			n_fragments_diploid++;
+			if(first_heterozygous_position == -2)
+			{
+				first_heterozygous_position = stretchI;
+			}
+		}
+
+		int thisStretchStop = lastStretchStop + 1 + sequenceFragments.at(stretchI).at(0).size() - 1;
+		stretchBoundaries.push_back(make_pair(lastStretchStop+1,thisStretchStop));
+		lastStretchStop = thisStretchStop;
+	}
+	assert(referenceSequence_forControl.length() == totalLength);
+	assert(referenceSequence_forControl_referencePositions.size() == totalLength);
+	assert(stretchBoundaries.back().second == (totalLength-1));
+
+	size_t n_haplotype_pairs = 1;
+	if(n_fragments_diploid > 1)
+	{
+		n_haplotype_pairs = std::pow(2, n_fragments_diploid-1);
+	}
+
+	std::vector<int> utilizingIndex;
+	utilizingIndex.resize(sequenceFragments.size(), 0);
+	std::string nucleotideHaplotype_1;
+	std::string nucleotideHaplotype_2;
+	nucleotideHaplotype_1.resize(totalLength, '#');
+	nucleotideHaplotype_2.resize(totalLength, '#');
+
+	auto populateNucleotideHaplotypes = [&](std::string& nucleotideHaplotype_1, std::string& nucleotideHaplotype_2, const std::vector<int>& utilizingIndex) -> void {
+		if(first_heterozygous_position >= 0)
+			assert(utilizingIndex.at(first_heterozygous_position) == 0);
+
+		for(unsigned int stretchI = 0; stretchI < utilizingIndex.size(); stretchI++)
+		{
+			const std::pair<unsigned int, unsigned int>& boundaries = stretchBoundaries.at(stretchI);
+			unsigned int L =  boundaries.second - boundaries.first + 1;
+			std::string sequence_for_1;
+			std::string sequence_for_2;
+
+			if(utilizingIndex.at(stretchI) == 0)
+			{
+				if(sequenceFragments.at(stretchI).size() == 1)
+				{
+					sequence_for_1 = sequenceFragments.at(stretchI).at(0);
+					sequence_for_2 = sequenceFragments.at(stretchI).at(0);
+				}
+				else
+				{
+					sequence_for_1 = sequenceFragments.at(stretchI).at(0);
+					sequence_for_2 = sequenceFragments.at(stretchI).at(1);
+				}
+			}
+			else
+			{
+				sequence_for_1 = sequenceFragments.at(stretchI).at(1);
+				sequence_for_2 = sequenceFragments.at(stretchI).at(0);
+			}
+
+
+			assert(sequence_for_1.length() == L);
+			assert(sequence_for_2.length() == L);
+
+			nucleotideHaplotype_1.replace(boundaries.first, L, sequence_for_1);
+			nucleotideHaplotype_2.replace(boundaries.first, L, sequence_for_2);
+		}
+	};
+
+	populateNucleotideHaplotypes(nucleotideHaplotype_1, nucleotideHaplotype_2, utilizingIndex);
+	assert(nucleotideHaplotype_1.find("#") == std::string::npos);
+	assert(nucleotideHaplotype_2.find("#") == std::string::npos);
+
+
+	bool done = false;
+	int consideredHaplotypes = 0;
+	while(!done)
+	{
+		// do something with the haplotype
+		consideredHaplotypes++;
+
+		// increase by 1
+		int currentDigit = utilizingIndex.size() - 1;
+		while((currentDigit >= 0) && ((utilizingIndex.at(currentDigit) >= ((int)sequenceFragments.at(currentDigit).size()-1)) || (currentDigit == first_heterozygous_position)))
+		{
+			currentDigit--;
+		}
+		if(currentDigit < 0)
+		{
+			done = true;
+			break;
+		}
+		else
+		{
+			utilizingIndex.at(currentDigit)++;
+			assert(utilizingIndex.at(currentDigit) < (int)sequenceFragments.at(currentDigit).size());
+			for(int digitI = currentDigit+1; digitI < (int)utilizingIndex.size(); digitI++)
+			{
+				utilizingIndex.at(digitI) = 0;
+			}
+			populateNucleotideHaplotypes(nucleotideHaplotype_1, nucleotideHaplotype_2, utilizingIndex);
+		}
+	}
+	assert(done);
+
+	std::cout << "Expected haplotype pairs: " << n_haplotype_pairs << " // processed: " << consideredHaplotypes << "\n" << std::flush;
+
+	assert(n_haplotype_pairs == consideredHaplotypes);
+
+}
+
+/*
 void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour)
 {
 	int peptideHaplotypeLength = *(peptideLengths.rbegin()) * 2 - 1;
@@ -613,7 +892,7 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 						}
 						std::cerr << "\n" << std::flush;
 					}
-					*/
+
 					doExtension(std::get<0>(reference_and_variantAlleles), std::get<1>(reference_and_variantAlleles), std::get<2>(reference_and_variantAlleles), std::get<3>(reference_and_variantAlleles), extendWith_interesting);
 
 					int reference_extension_length_noGaps = countCharacters_noGaps(std::get<0>(reference_and_variantAlleles));
@@ -661,10 +940,12 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 			break;
 	}
 
-	*/
+
 
 	assert(1 == 11);
 }
+
+*/
 
 std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<std::vector<int>>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int startReferencePos, unsigned int lastReferencePos)
 {
@@ -692,7 +973,7 @@ std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<
 		}
 
 		int lastRefPos = -2;
-		for(int i = 0; i < forReturn.size(); i++)
+		for(int i = 0; i < (int)forReturn.size(); i++)
 		{
 			assert((lastRefPos == -2) || (forReturn.at(i) == -1) || (forReturn.at(i) > lastRefPos));
 			if(forReturn.at(i) != -1)
