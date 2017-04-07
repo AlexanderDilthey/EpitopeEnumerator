@@ -28,6 +28,10 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
 
 std::set<int> peptideLengths = {8, 9, 10, 11, 15, 16};
+using fragmentT = std::tuple<std::string, std::vector<std::pair<int, int>>, std::vector<bool>>;
+
+std::vector<fragmentT> AAHaplotypeIntoFragments(int k, const fragmentT& haplotype);
+fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const std::vector<int>& positions, const std::vector<bool>& interesting);
 
 int main(int argc, char *argv[]) {
 
@@ -128,7 +132,7 @@ void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string,
 
 }
 
-void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour)
+void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<fragmentT, double>>& haplotypeStore)
 {
 	// validate exons - left to right, non-overlapping
 	int n_exons = transcript.exons.size();
@@ -306,8 +310,12 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	std::string nucleotideHaplotype_2;
 	nucleotideHaplotype_1.resize(totalLength, '#');
 	nucleotideHaplotype_2.resize(totalLength, '#');
+	std::vector<int> nucleotideHaplotype_1_positions;
+	std::vector<int> nucleotideHaplotype_2_positions;
+	std::vector<bool> nucleotideHaplotype_1_interesting;
+	std::vector<bool> nucleotideHaplotype_2_interesting;
 
-	auto populateNucleotideHaplotypes = [&](std::string& nucleotideHaplotype_1, std::string& nucleotideHaplotype_2, const std::vector<int>& utilizingIndex) -> void {
+	auto populateNucleotideHaplotypes = [&](std::string& nucleotideHaplotype_1, std::string& nucleotideHaplotype_2, std::vector<int>& nucleotideHaplotype_1_positions, std::vector<int>& nucleotideHaplotype_2_positions, std::vector<bool>& nucleotideHaplotype_1_interesting, std::vector<bool>& nucleotideHaplotype_2_interesting, const std::vector<int>& utilizingIndex) -> void {
 		if(first_heterozygous_position >= 0)
 			assert(utilizingIndex.at(first_heterozygous_position) == 0);
 
@@ -315,38 +323,52 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 		{
 			const std::pair<unsigned int, unsigned int>& boundaries = stretchBoundaries.at(stretchI);
 			unsigned int L =  boundaries.second - boundaries.first + 1;
-			std::string sequence_for_1;
-			std::string sequence_for_2;
 
+			int index_for_1;
+			int index_for_2;
 			if(utilizingIndex.at(stretchI) == 0)
 			{
 				if(sequenceFragments.at(stretchI).size() == 1)
 				{
-					sequence_for_1 = sequenceFragments.at(stretchI).at(0);
-					sequence_for_2 = sequenceFragments.at(stretchI).at(0);
+					index_for_1 = 0;
+					index_for_2 = 0;
 				}
 				else
 				{
-					sequence_for_1 = sequenceFragments.at(stretchI).at(0);
-					sequence_for_2 = sequenceFragments.at(stretchI).at(1);
+					index_for_1 = 0;
+					index_for_2 = 1;
 				}
 			}
 			else
 			{
-				sequence_for_1 = sequenceFragments.at(stretchI).at(1);
-				sequence_for_2 = sequenceFragments.at(stretchI).at(0);
+				index_for_1 = 1;
+				index_for_2 = 0;
 			}
 
+			const std::string& sequence_for_1 = sequenceFragments.at(stretchI).at(index_for_1);
+			const std::string& sequence_for_2 = sequenceFragments.at(stretchI).at(index_for_2);
+			const std::vector<int>& positions_for_1 = sequenceFragments_referencePositions.at(stretchI).at(index_for_1);
+			const std::vector<int>& positions_for_2 = sequenceFragments_referencePositions.at(stretchI).at(index_for_2);
+			const std::vector<bool>& interesting_for_1 = sequenceFragments_interesting.at(stretchI).at(index_for_1);
+			const std::vector<bool>& interesting_for_2 = sequenceFragments_interesting.at(stretchI).at(index_for_2);
 
-			assert(sequence_for_1.length() == L);
-			assert(sequence_for_2.length() == L);
+			assert(sequence_for_1.length() == L); assert(sequence_for_2.length() == L);
+			assert(positions_for_1.size() == L); assert(positions_for_2.size() == L);
+			assert(interesting_for_1.size() == L); assert(interesting_for_2.size() == L);
 
 			nucleotideHaplotype_1.replace(boundaries.first, L, sequence_for_1);
 			nucleotideHaplotype_2.replace(boundaries.first, L, sequence_for_2);
+			for(unsigned int pI = boundaries.first; pI <= boundaries.second; pI++)
+			{
+				nucleotideHaplotype_1_positions.at(pI) = positions_for_1.at(pI - boundaries.first);
+				nucleotideHaplotype_2_positions.at(pI) = positions_for_2.at(pI - boundaries.first);
+				nucleotideHaplotype_1_interesting.at(pI) = interesting_for_1.at(pI - boundaries.first);
+				nucleotideHaplotype_2_interesting.at(pI) = interesting_for_2.at(pI - boundaries.first);
+			}
 		}
 	};
 
-	populateNucleotideHaplotypes(nucleotideHaplotype_1, nucleotideHaplotype_2, utilizingIndex);
+	populateNucleotideHaplotypes(nucleotideHaplotype_1, nucleotideHaplotype_2, nucleotideHaplotype_1_positions, nucleotideHaplotype_2_positions, nucleotideHaplotype_1_interesting, nucleotideHaplotype_2_interesting, utilizingIndex);
 	assert(nucleotideHaplotype_1.find("#") == std::string::npos);
 	assert(nucleotideHaplotype_2.find("#") == std::string::npos);
 
@@ -377,7 +399,7 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 			{
 				utilizingIndex.at(digitI) = 0;
 			}
-			populateNucleotideHaplotypes(nucleotideHaplotype_1, nucleotideHaplotype_2, utilizingIndex);
+			populateNucleotideHaplotypes(nucleotideHaplotype_1, nucleotideHaplotype_2, nucleotideHaplotype_1_positions, nucleotideHaplotype_2_positions, nucleotideHaplotype_1_interesting, nucleotideHaplotype_2_interesting, utilizingIndex);
 		}
 	}
 	assert(done);
@@ -385,7 +407,132 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	std::cout << "Expected haplotype pairs: " << n_haplotype_pairs << " // processed: " << consideredHaplotypes << "\n" << std::flush;
 
 	assert(n_haplotype_pairs == consideredHaplotypes);
+}
 
+void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const std::string& sequence_1, const std::vector<int>& positions_1, const std::vector<bool>& interesting_1, const std::string& sequence_2, const std::vector<int>& positions_2, const std::vector<bool>& interesting_2, double p, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& fragmentStore)
+{
+	std::set<int> fragmentSizes;
+	for(auto f : fragmentStore)
+	{
+		assert(f.first > 0);
+		fragmentSizes.insert(f.first);
+	}
+
+	for(int fragmentSize : fragmentSizes)
+	{
+		fragmentT h1_fragment = make_tuple(sequence_1, positions_1, interesting_1);
+		fragmentT h2_fragment = make_tuple(sequence_2, positions_2, interesting_2);
+		std::vector<fragmentT> fragments_1 = AAHaplotypeIntoFragments(fragmentSize, h1_fragment);
+		std::vector<fragmentT> fragments_2 = AAHaplotypeIntoFragments(fragmentSize, h2_fragment);
+
+		std::set<fragmentT> combined_fragments;
+		combined_fragments.insert(fragments_1.begin(), fragments_1.end());
+		combined_fragments.insert(fragments_2.begin(), fragments_2.end());
+
+		for(const fragmentT& fragment : combined_fragments)
+		{
+			if(fragmentStore.at(fragmentSize).count(std::get<0>(fragment)))
+			{
+				fragmentStore.at(fragmentSize).at(std::get<0>(fragment)).first += p;
+				fragmentStore.at(fragmentSize).at(std::get<0>(fragment)).second.insert(make_pair(std::get<1>(fragment), std::get<2>(fragment)));
+			}
+			else
+			{
+				fragmentStore.at(fragmentSize)[std::get<0>(fragment)] = make_pair(p, {make_pair(std::get<1>(fragment), std::get<2>(fragment))});
+			}
+		}
+	}
+}
+
+std::vector<fragmentT> AAHaplotypeIntoFragments(int k, const fragmentT& haplotype)
+{
+	assert(std::get<0>(haplotype).size() == std::get<1>(haplotype).size());
+	assert(std::get<0>(haplotype).size() == std::get<2>(haplotype).size());
+	int n_fragments = std::get<0>(haplotype).length() - k + 1;
+	std::vector<fragmentT> forReturn;
+	forReturn.reserve(n_fragments);
+	for(unsigned int pI = 0; pI < n_fragments; pI++)
+	{
+		std::string S = std::get<0>(haplotype).substr(pI, k);
+		std::vector<std::pair<int, int>> S_p = std::vector<std::pair<int, int>>(std::get<1>(haplotype).begin()+pI, std::get<1>(haplotype).begin()+pI+k);
+		std::vector<bool> S_i = std::vector<bool>(std::get<2>(haplotype).begin()+pI, std::get<2>(haplotype).begin()+pI+k);
+		assert(S.length() == k); assert(S_p.size() == k); assert(S_i.size() == k);
+		forReturn.push_back(make_tuple(S, S_p, S_i));
+	}
+	return forReturn;
+}
+
+fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const std::vector<int>& positions, const std::vector<bool>& interesting)
+{
+	assert(sequence.length() == positions.size()); assert(sequence.length() == interesting.size());
+	std::vector<fragmentT> forReturn;
+
+	std::string AAs; AAs.reserve(sequence.length()/3);
+	std::vector<std::pair<int, int>> AAs_firstLast; AAs_firstLast.reserve(AAs.capacity());
+	std::vector<bool> AAs_interesting; AAs_interesting.reserve(AAs.capacity());
+
+
+	std::string runningCodon;
+	std::vector<int> runningPositions;
+	std::vector<bool> runningInteresting;
+
+	int currentPos = 0;
+	while(currentPos < sequence.length())
+	{
+		unsigned char thisC = sequence.at(currentPos);
+		if((thisC != '-') && (thisC != '_'))
+		{
+			runningCodon.push_back(thisC);
+			runningPositions.push_back(positions.at(currentPos));
+			runningInteresting.push_back(interesting.at(currentPos));
+		}
+
+		if(runningCodon.length() == 3)
+		{
+			std::string translation = translateCodon2AA(runningCodon);
+			bool interesting = runningInteresting.at(0) || runningPositions.at(1) || runningPositions.at(2);
+			int lastPos = -2;
+			int minPos = -2;
+			int maxPos = -2;
+			for(auto p : runningPositions)
+			{
+				if(p != -1)
+				{
+					if(minPos == -2)
+						minPos = p;
+
+					maxPos = p;
+
+					if(lastPos != -2)
+					{
+						assert(p > lastPos);
+					}
+					lastPos = p;
+				}
+			}
+			assert(maxPos >= minPos);
+			assert(((minPos == -2) && (maxPos == -2)) || ((minPos >= 0) && (maxPos >= 0)));
+			if((minPos == -2) && (maxPos == -2))
+			{
+				minPos = -1;
+				maxPos = -1;
+			}
+
+			if(translation == "!")
+			{
+				break;
+			}
+			else
+			{
+				AAs.append(translation);
+				AAs_firstLast.push_back(make_pair(minPos, maxPos));
+				AAs_interesting.push_back(interesting);
+			}
+		}
+		currentPos++;
+	}
+
+	return make_tuple(AAs, AAs_firstLast, AAs_interesting);
 }
 
 /*
