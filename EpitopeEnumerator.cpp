@@ -24,11 +24,13 @@ std::vector<transcript> getPlusStrandTranscripts(const std::vector<transcript>& 
 //void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
 std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<std::vector<int>>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int startReferencePos, unsigned int lastReferencePos);
 
-void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
-void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
+using fragmentT = std::tuple<std::string, std::vector<std::pair<int, int>>, std::vector<bool>>;
+
+void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const std::string& sequence_1, const std::vector<int>& positions_1, const std::vector<bool>& interesting_1, const std::string& sequence_2, const std::vector<int>& positions_2, const std::vector<bool>& interesting_2, double p, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& fragmentStore);
+void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>>& haplotypeStore);
+void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>>& haplotypeStore);
 
 std::set<int> peptideLengths = {8, 9, 10, 11, 15, 16};
-using fragmentT = std::tuple<std::string, std::vector<std::pair<int, int>>, std::vector<bool>>;
 
 std::vector<fragmentT> AAHaplotypeIntoFragments(int k, const fragmentT& haplotype);
 fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const std::vector<int>& positions, const std::vector<bool>& interesting);
@@ -38,86 +40,152 @@ int main(int argc, char *argv[]) {
 	std::vector<std::string> ARG (argv + 1, argv + argc + !argc);
 	std::map<std::string, std::string> arguments;
 
-	arguments["referenceGenome"] = "data/GRCh38_full_analysis_set_plus_decoy_hla.fa.chr20";
-	arguments["normalVCF"] = "data/NA12878.vcf.chr20";
-	arguments["transcripts"] = "data/gencode.v26.annotation.gff3";
-
-	/*
-	std::map<std::pair<int, int>, int> testP;
-	testP[make_pair(1,2)] = 4;
-	assert(testP.count(make_pair(1,2)));
-	assert(! testP.count(make_pair(1,3)));
-	std::cout << testP[make_pair(1,2)] << "\n" << std::flush;
-	assert(2 == 10);
-	 */
-
-	for(unsigned int i = 0; i < ARG.size(); i++)
+	bool testing = true;
+	if(testing)
 	{
-		if((ARG.at(i).length() > 2) && (ARG.at(i).substr(0, 2) == "--"))
+		std::map<std::string, std::string> referenceGenome;
+		referenceGenome["chr"] = "ACGGCAGCAGCAGCAGCAGCATAATTT";
+		std::map<std::string, std::map<int, variantFromVCF>> variants;
+
+		variantFromVCF oneVariant;
+		oneVariant.chromosomeID = "chr";
+		oneVariant.position = 10;
+		oneVariant.referenceString = "C";
+		oneVariant.sampleAlleles = {"C", "T"};
+
+		variantFromVCF oneVariant_2;
+		oneVariant_2.chromosomeID = "chr";
+		oneVariant_2.position = 13;
+		oneVariant_2.referenceString = "C";
+		oneVariant_2.sampleAlleles = {"C", "T"};
+
+		variants["chr"][10] = oneVariant;
+		variants["chr"][13] = oneVariant_2;
+
+		// std::map<int, variantFromVCF>();
+
+		transcriptExon oneExon;
+		oneExon.valid = true;
+		oneExon.firstPos = 3;
+		oneExon.lastPos = oneExon.firstPos + 7 * 3 - 1;
+		transcript oneTranscript;
+		oneTranscript.chromosomeID = "chr";
+		oneTranscript.geneName = "testGene";
+		oneTranscript.strand = '+';
+		oneTranscript.exons = {oneExon};
+
+		std::vector<transcript> transcripts_plus = {oneTranscript};
+
+		std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
+		haplotypeStore[6] = std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>();
+		enumeratePeptideHaplotypes(10, referenceGenome, transcripts_plus, variants, true, haplotypeStore);
+
+		for(auto haplotypesOneLength : haplotypeStore)
 		{
-			std::string argname = ARG.at(i).substr(2);
-			std::string argvalue = ARG.at(i+1);
-			arguments[argname] = argvalue;
-		}
-	}
-
-	std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
-
-	std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"));
-
-	std::map<std::string, std::string> referenceGenome = Utilities::readFASTA(arguments.at("referenceGenome"));
-
-	std::vector<transcript> transcripts_plus = getPlusStrandTranscripts(transcripts);
-
-	for(const transcript& t : transcripts_plus)
-	{
-		std::string t_referenceSequence;
-		for(const transcriptExon& e : t.exons)
-		{
-			if(e.valid)
+			std::cout << "Length " << haplotypesOneLength.first << ": " << haplotypesOneLength.second.size() << "\n" << std::flush;
+			for(auto fragment : haplotypesOneLength.second)
 			{
-				if(referenceGenome.count(t.chromosomeID) == 0)
-				{
-					std::cerr << "Unknown chromosome ID: "+t.chromosomeID << "\n" << std::flush;
-					throw std::runtime_error("Unknown chromosome ID: "+t.chromosomeID);
-				}
-				const std::string& chromosomeSequence = referenceGenome.at(t.chromosomeID);
-				assert(e.firstPos <= e.lastPos);
-				assert(e.firstPos >= 0);
-				assert(e.lastPos < chromosomeSequence.length());
-
-				t_referenceSequence += referenceGenome.at(t.chromosomeID).substr(e.firstPos, e.lastPos - e.firstPos + 1);
+				const std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>& probabilites_and_positions = fragment.second;
+				double maxP = probabilites_and_positions.crbegin()->first;
+				std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
 			}
 		}
-		std::string translation;
-		assert((t_referenceSequence.length() % 3) == 0);
-		for(unsigned int i = 0; i < t_referenceSequence.length(); i += 3)
-		{
-			std::string codon = t_referenceSequence.substr(i, 3);
-			assert(codon.length() == 3);
-			translation += translateCodon2AA(codon);
-		}
-		if(translation.back() != '!')
-		{
-			// std::cout << t.transcriptID << " " << translation << "\n" << std::flush;
-		}
-		// assert(translation.back() == '!');
 	}
+	else
+	{
+		arguments["referenceGenome"] = "data/GRCh38_full_analysis_set_plus_decoy_hla.fa.chr20";
+		arguments["normalVCF"] = "data/NA12878.vcf.chr20";
+		arguments["transcripts"] = "data/gencode.v26.annotation.gff3";
 
-	// assert("Are the GFF stop coordinates inclusive?" == "");
+		/*
+		std::map<std::pair<int, int>, int> testP;
+		testP[make_pair(1,2)] = 4;
+		assert(testP.count(make_pair(1,2)));
+		assert(! testP.count(make_pair(1,3)));
+		std::cout << testP[make_pair(1,2)] << "\n" << std::flush;
+		assert(2 == 10);
+		 */
+
+		for(unsigned int i = 0; i < ARG.size(); i++)
+		{
+			if((ARG.at(i).length() > 2) && (ARG.at(i).substr(0, 2) == "--"))
+			{
+				std::string argname = ARG.at(i).substr(2);
+				std::string argvalue = ARG.at(i+1);
+				arguments[argname] = argvalue;
+			}
+		}
+
+		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
+
+		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"));
+
+		std::map<std::string, std::string> referenceGenome = Utilities::readFASTA(arguments.at("referenceGenome"));
+
+		std::vector<transcript> transcripts_plus = getPlusStrandTranscripts(transcripts);
+
+		for(const transcript& t : transcripts_plus)
+		{
+			std::string t_referenceSequence;
+			for(const transcriptExon& e : t.exons)
+			{
+				if(e.valid)
+				{
+					if(referenceGenome.count(t.chromosomeID) == 0)
+					{
+						std::cerr << "Unknown chromosome ID: "+t.chromosomeID << "\n" << std::flush;
+						throw std::runtime_error("Unknown chromosome ID: "+t.chromosomeID);
+					}
+					const std::string& chromosomeSequence = referenceGenome.at(t.chromosomeID);
+					assert(e.firstPos <= e.lastPos);
+					assert(e.firstPos >= 0);
+					assert(e.lastPos < chromosomeSequence.length());
+
+					t_referenceSequence += referenceGenome.at(t.chromosomeID).substr(e.firstPos, e.lastPos - e.firstPos + 1);
+				}
+			}
+			std::string translation;
+			assert((t_referenceSequence.length() % 3) == 0);
+			for(unsigned int i = 0; i < t_referenceSequence.length(); i += 3)
+			{
+				std::string codon = t_referenceSequence.substr(i, 3);
+				assert(codon.length() == 3);
+				translation += translateCodon2AA(codon);
+			}
+			if(translation.back() != '!')
+			{
+				// std::cout << t.transcriptID << " " << translation << "\n" << std::flush;
+			}
+			// assert(translation.back() == '!');
+		}
+
+		// assert("Are the GFF stop coordinates inclusive?" == "");
 
 
-	enumeratePeptideHaplotypes(10, referenceGenome, transcripts_plus, variants, true);
+		std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
+		haplotypeStore[6] = std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>();
+		enumeratePeptideHaplotypes(10, referenceGenome, transcripts_plus, variants, true, haplotypeStore);
 
-	assert(1 == 2);
+		for(auto haplotypesOneLength : haplotypeStore)
+		{
+			std::cout << "Length " << haplotypesOneLength.first << ": " << haplotypesOneLength.second.size() << "\n" << std::flush;
+			for(auto fragment : haplotypesOneLength.second)
+			{
+				const std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>& probabilites_and_positions = fragment.second;
+				double maxP = probabilites_and_positions.crbegin()->first;
+				std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
+			}
+		}
+		assert(1 == 2);
 
-	assert("minus-strand transcripts!" == "");
-	assert("add stop codons!" == "");
+		assert("minus-strand transcripts!" == "");
+		assert("add stop codons!" == "");
+	}
 
 	return 0;
 }
 
-void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour)
+void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>>& haplotypeStore)
 {
 	for(unsigned int transcriptI = 0; transcriptI < transcripts_plus.size(); transcriptI++)
 	{
@@ -127,12 +195,11 @@ void enumeratePeptideHaplotypes(int haplotypeLength, const std::map<std::string,
 		if(referenceGenome_plus.count(chromosomeID) == 0)
 			continue;
 
-		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, isTumour);
+		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, isTumour, haplotypeStore);
 	}
-
 }
 
-void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<fragmentT, double>>& haplotypeStore)
+void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>>& haplotypeStore)
 {
 	// validate exons - left to right, non-overlapping
 	int n_exons = transcript.exons.size();
@@ -314,6 +381,10 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	std::vector<int> nucleotideHaplotype_2_positions;
 	std::vector<bool> nucleotideHaplotype_1_interesting;
 	std::vector<bool> nucleotideHaplotype_2_interesting;
+	nucleotideHaplotype_1_positions.resize(totalLength);
+	nucleotideHaplotype_2_positions.resize(totalLength);
+	nucleotideHaplotype_1_interesting.resize(totalLength);
+	nucleotideHaplotype_2_interesting.resize(totalLength);
 
 	auto populateNucleotideHaplotypes = [&](std::string& nucleotideHaplotype_1, std::string& nucleotideHaplotype_2, std::vector<int>& nucleotideHaplotype_1_positions, std::vector<int>& nucleotideHaplotype_2_positions, std::vector<bool>& nucleotideHaplotype_1_interesting, std::vector<bool>& nucleotideHaplotype_2_interesting, const std::vector<int>& utilizingIndex) -> void {
 		if(first_heterozygous_position >= 0)
@@ -372,12 +443,27 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	assert(nucleotideHaplotype_1.find("#") == std::string::npos);
 	assert(nucleotideHaplotype_2.find("#") == std::string::npos);
 
-
+	std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> fragmentStore_thisTranscript;
+	for(auto hpS : haplotypeStore)
+	{
+		fragmentStore_thisTranscript[hpS.first] = std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>();
+	}
 	bool done = false;
 	int consideredHaplotypes = 0;
 	while(!done)
 	{
 		// do something with the haplotype
+
+		populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(
+			nucleotideHaplotype_1,
+			nucleotideHaplotype_1_positions,
+			nucleotideHaplotype_1_interesting,
+			nucleotideHaplotype_2,
+			nucleotideHaplotype_2_positions,
+			nucleotideHaplotype_2_interesting,
+			1.0/(double)n_haplotype_pairs,
+			fragmentStore_thisTranscript
+		);
 		consideredHaplotypes++;
 
 		// increase by 1
@@ -404,6 +490,17 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	}
 	assert(done);
 
+
+
+
+	for(auto length_fragments : fragmentStore_thisTranscript)
+	{
+		for(auto fragment : length_fragments.second)
+		{
+			const std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>& possibleLocations = fragment.second;
+			haplotypeStore[length_fragments.first][fragment.first][possibleLocations.first].insert(possibleLocations.second);
+		}
+	}
 	std::cout << "Expected haplotype pairs: " << n_haplotype_pairs << " // processed: " << consideredHaplotypes << "\n" << std::flush;
 
 	assert(n_haplotype_pairs == consideredHaplotypes);
@@ -411,6 +508,11 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 
 void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const std::string& sequence_1, const std::vector<int>& positions_1, const std::vector<bool>& interesting_1, const std::string& sequence_2, const std::vector<int>& positions_2, const std::vector<bool>& interesting_2, double p, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& fragmentStore)
 {
+	assert(sequence_1.length() == positions_1.size());
+	assert(sequence_1.length() == interesting_1.size());
+	assert(sequence_2.length() == positions_2.size());
+	assert(sequence_2.length() == interesting_2.size());
+
 	std::set<int> fragmentSizes;
 	for(auto f : fragmentStore)
 	{
@@ -420,10 +522,14 @@ void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const
 
 	for(int fragmentSize : fragmentSizes)
 	{
-		fragmentT h1_fragment = make_tuple(sequence_1, positions_1, interesting_1);
-		fragmentT h2_fragment = make_tuple(sequence_2, positions_2, interesting_2);
+		fragmentT h1_fragment = AAHaplotypeFromSequence_stopAware(sequence_1, positions_1, interesting_1);
+		fragmentT h2_fragment = AAHaplotypeFromSequence_stopAware(sequence_2, positions_2, interesting_2);
+		std::cout << std::get<0>(h1_fragment).length() << "\n" << std::flush;
+		assert(std::get<0>(h1_fragment).size() == std::get<1>(h1_fragment).size());
+		assert(std::get<0>(h2_fragment).size() == std::get<2>(h2_fragment).size());
 		std::vector<fragmentT> fragments_1 = AAHaplotypeIntoFragments(fragmentSize, h1_fragment);
 		std::vector<fragmentT> fragments_2 = AAHaplotypeIntoFragments(fragmentSize, h2_fragment);
+		std::cout << fragments_1.size() << "\n" << std::flush;
 
 		std::set<fragmentT> combined_fragments;
 		combined_fragments.insert(fragments_1.begin(), fragments_1.end());
@@ -438,7 +544,10 @@ void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const
 			}
 			else
 			{
-				fragmentStore.at(fragmentSize)[std::get<0>(fragment)] = make_pair(p, {make_pair(std::get<1>(fragment), std::get<2>(fragment))});
+				//std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>> newPair;
+				//newPair.first = p;
+				//newPair.second =
+				fragmentStore.at(fragmentSize)[std::get<0>(fragment)] = make_pair(p, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>({make_pair(std::get<1>(fragment), std::get<2>(fragment))}));
 			}
 		}
 	}
@@ -450,14 +559,17 @@ std::vector<fragmentT> AAHaplotypeIntoFragments(int k, const fragmentT& haplotyp
 	assert(std::get<0>(haplotype).size() == std::get<2>(haplotype).size());
 	int n_fragments = std::get<0>(haplotype).length() - k + 1;
 	std::vector<fragmentT> forReturn;
-	forReturn.reserve(n_fragments);
-	for(unsigned int pI = 0; pI < n_fragments; pI++)
+	if(n_fragments > 0)
 	{
-		std::string S = std::get<0>(haplotype).substr(pI, k);
-		std::vector<std::pair<int, int>> S_p = std::vector<std::pair<int, int>>(std::get<1>(haplotype).begin()+pI, std::get<1>(haplotype).begin()+pI+k);
-		std::vector<bool> S_i = std::vector<bool>(std::get<2>(haplotype).begin()+pI, std::get<2>(haplotype).begin()+pI+k);
-		assert(S.length() == k); assert(S_p.size() == k); assert(S_i.size() == k);
-		forReturn.push_back(make_tuple(S, S_p, S_i));
+		forReturn.reserve(n_fragments);
+		for(unsigned int pI = 0; pI < n_fragments; pI++)
+		{
+			std::string S = std::get<0>(haplotype).substr(pI, k);
+			std::vector<std::pair<int, int>> S_p = std::vector<std::pair<int, int>>(std::get<1>(haplotype).begin()+pI, std::get<1>(haplotype).begin()+pI+k);
+			std::vector<bool> S_i = std::vector<bool>(std::get<2>(haplotype).begin()+pI, std::get<2>(haplotype).begin()+pI+k);
+			assert(S.length() == k); assert(S_p.size() == k); assert(S_i.size() == k);
+			forReturn.push_back(make_tuple(S, S_p, S_i));
+		}
 	}
 	return forReturn;
 }
@@ -528,10 +640,16 @@ fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const s
 				AAs_firstLast.push_back(make_pair(minPos, maxPos));
 				AAs_interesting.push_back(interesting);
 			}
+
+			runningCodon.clear();
+			runningPositions.clear();
+			runningInteresting.clear();
 		}
 		currentPos++;
 	}
 
+	assert(AAs.size() == AAs_firstLast.size());
+	assert(AAs.size() == AAs_interesting.size());
 	return make_tuple(AAs, AAs_firstLast, AAs_interesting);
 }
 
