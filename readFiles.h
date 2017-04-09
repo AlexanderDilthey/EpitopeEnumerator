@@ -50,4 +50,13 @@ std::string translateCodon2AA(const std::string& codon);
 
 void extendAsNecessary(std::string& S, unsigned int desiredLength);
 
+std::vector<transcript> getPlusStrandTranscripts(const std::vector<transcript>& transcripts);
+std::vector<transcript> getMinusStrandTranscripts(const std::vector<transcript>& transcripts, const std::map<std::string, std::string>& referenceGenome_minus);
+std::map<std::string, std::string> getMinusStrandReferenceGenome(const std::map<std::string, std::string>& referenceGenome);
+std::map<std::string, std::map<int, variantFromVCF>> getMinusStrandVariants(const std::map<std::string, std::map<int, variantFromVCF>>& variants, const std::map<std::string, std::string>& referenceGenome_minus);
+void checkVariantsConsistentWithReferenceGenome(const std::map<std::string, std::map<int, variantFromVCF>>& variants, const std::map<std::string, std::string>& referenceGenome);
+
+std::string seq_reverse_complement(const std::string& sequence);
+char reverse_char_nucleotide(char c);
+
 #endif /* READFILES_H_ */

@@ -402,3 +402,177 @@ void extendAsNecessary(std::string& S, unsigned int desiredLength)
 	}
 
 }
+
+
+std::vector<transcript> getPlusStrandTranscripts(const std::vector<transcript>& transcripts)
+{
+	std::vector<transcript> forReturn;
+	forReturn.reserve(transcripts.size());
+	for(transcript t : transcripts)
+	{
+		if(t.strand == '+')
+		{
+			forReturn.push_back(t);
+		}
+	}
+
+	std::cout << "getPlusStrandTranscripts(..): " << forReturn.size() << " plus-strand transcripts.\n" << std::flush;
+
+	return forReturn;
+}
+
+std::vector<transcript> getMinusStrandTranscripts(const std::vector<transcript>& transcripts, const std::map<std::string, std::string>& referenceGenome_minus)
+{
+	std::vector<transcript> forReturn;
+	for(const transcript& t : transcripts)
+	{
+		if(t.strand == '-')
+		{
+			transcript t_minus;
+			t_minus.chromosomeID = t.chromosomeID;
+			t_minus.geneName = t.geneName;
+			t_minus.strand = '-';
+			t_minus.exons.resize(t.exons.size());
+
+			size_t referenceContigLength = referenceGenome_minus.at(t.chromosomeID).length();
+
+			// make sure exons go from right to left in non-overlapping fashion
+			int lastValidExonI = -1;
+			for(int exonI = 0; exonI < (int)t.exons.size(); exonI++)
+			{
+				if(t.exons.at(exonI).valid)
+				{
+					assert(t.exons.at(exonI).firstPos <= t.exons.at(exonI).lastPos);
+					if(lastValidExonI != -1)
+					{
+						assert(t.exons.at(exonI).lastPos < t.exons.at(lastValidExonI).firstPos);
+					}
+					lastValidExonI = exonI;
+
+					t_minus.exons.at(exonI).valid = true;
+
+					long long minus_firstPos = referenceContigLength - t_minus.exons.at(exonI).firstPos - 1;
+					long long minus_lastPos = referenceContigLength - t_minus.exons.at(exonI).lastPos - 1;
+					assert(minus_firstPos >= minus_lastPos);
+					long long third = minus_firstPos;
+					minus_firstPos = minus_lastPos;
+					minus_lastPos = third;
+					assert(minus_firstPos <= minus_lastPos);
+
+					t_minus.exons.at(exonI).firstPos = minus_firstPos;
+					t_minus.exons.at(exonI).lastPos = minus_lastPos;
+				}
+			}
+
+			forReturn.push_back(t_minus);
+		}
+	}
+
+	return forReturn;
+}
+
+
+
+std::map<std::string, std::map<int, variantFromVCF>> getMinusStrandVariants(const std::map<std::string, std::map<int, variantFromVCF>>& variants, const std::map<std::string, std::string>& referenceGenome_minus)
+{
+	std::map<std::string, std::map<int, variantFromVCF>> forReturn;
+	for(auto chromosomeData : variants)
+	{
+		for(auto positionAndVariant : chromosomeData.second)
+		{
+			const variantFromVCF& existingVariant = positionAndVariant.second;
+
+			size_t referenceContigLength = referenceGenome_minus.at(existingVariant.chromosomeID).length();
+			unsigned int existingVariant_lastVariantPosition = existingVariant.position + existingVariant.referenceString.length() - 1;
+			assert(existingVariant_lastVariantPosition < referenceContigLength);
+
+			variantFromVCF minusVariant;
+			minusVariant.chromosomeID = existingVariant.chromosomeID;
+			minusVariant.position = referenceContigLength - existingVariant_lastVariantPosition - 1;
+			minusVariant.referenceString = seq_reverse_complement(existingVariant.referenceString);
+			assert(referenceGenome_minus.at(minusVariant.chromosomeID).substr(minusVariant.position, minusVariant.referenceString.length()) == minusVariant.referenceString);
+			for(auto sA : existingVariant.sampleAlleles)
+			{
+				minusVariant.sampleAlleles.push_back(seq_reverse_complement(sA));
+			}
+			forReturn[chromosomeData.first][minusVariant.position] = minusVariant;
+		}
+	}
+
+	return forReturn;
+}
+
+std::map<std::string, std::string> getMinusStrandReferenceGenome(const std::map<std::string, std::string>& referenceGenome)
+{
+	std::map<std::string, std::string> forReturn;
+	for(auto referenceGenomeEntry : referenceGenome)
+	{
+		forReturn[referenceGenomeEntry.first] = seq_reverse_complement(referenceGenomeEntry.second);
+	}
+	return forReturn;
+}
+
+std::string seq_reverse_complement(const std::string& sequence)
+{
+	int length = sequence.size();
+	std::string forReturn;
+	forReturn.resize(length);
+    for(int k=0; k < length; k++)
+    {
+        forReturn[k] = reverse_char_nucleotide(sequence.at(length-k-1));
+    }
+    return forReturn;
+}
+
+char reverse_char_nucleotide(char c)
+{
+    switch (c)
+    {
+		case 'A':
+			return 'T';
+		case 'C':
+			return 'G';
+		case 'G':
+			return 'C';
+		case 'T':
+			return 'A';
+		case 'N':
+			return 'N';
+		case 'a':
+			return 't';
+		case 'c':
+			return 'g';
+		case 'g':
+			return 'c';
+		case 't':
+			return 'a';
+		case 'n':
+			return 'n';
+		case '_':
+			return '_';
+		case '*':
+			return '*';
+		default:
+			std::string errorString = "Utilities::reverse_char_nucleotide: nucleotide not existing!";
+			errorString.push_back(c);
+			throw std::runtime_error(errorString);
+    }
+}
+
+void checkVariantsConsistentWithReferenceGenome(const std::map<std::string, std::map<int, variantFromVCF>>& variants, const std::map<std::string, std::string>& referenceGenome)
+{
+	for(auto chromosomeData : variants)
+	{
+		for(auto positionAndVariant : chromosomeData.second)
+		{
+			const variantFromVCF& variant = positionAndVariant.second;
+			assert(variant.chromosomeID == chromosomeData.first);
+			assert((int)variant.position == positionAndVariant.first);
+			assert(variant.referenceString == referenceGenome.at(variant.chromosomeID).substr(variant.position, variant.referenceString.length()));
+			for(auto sA : variant.sampleAlleles)
+			{
+				assert(sA.length() == variant.referenceString.length());
+			}
+		}
+	}
+}
