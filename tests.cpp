@@ -837,8 +837,8 @@ void some_simple_tests()
 		oneVariant_2.chromosomeID = "chr";
 		oneVariant_2.position = 13;
 		oneVariant_2.referenceString = "C";
-		oneVariant_2.sampleAlleles = {"T", "T"};
-		oneVariant_2.sampleAlleles_interesting = {true, true};
+		oneVariant_2.sampleAlleles = {"C", "T"};
+		oneVariant_2.sampleAlleles_interesting = {false, true};
 
 		variants["chr"][10] = oneVariant;
 		variants["chr"][13] = oneVariant_2;

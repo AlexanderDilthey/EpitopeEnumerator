@@ -705,6 +705,33 @@ fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const s
 	return make_tuple(AAs, AAs_firstLast, AAs_interesting);
 }
 
+
+void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet);
+void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet);
+void enumeratePeptideHaplotypes_improperFrequencies(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, bool isTumour, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
+{
+	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);
+	std::map<std::string, std::map<int, variantFromVCF>> variants_minus = getMinusStrandVariants(variants, referenceGenome_minus);
+
+	checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
+	checkVariantsConsistentWithReferenceGenome(variants_minus, referenceGenome_minus);
+
+	std::vector<transcript> transcripts_plus = getPlusStrandTranscripts(transcripts);
+	std::vector<transcript> transcripts_minus = getMinusStrandTranscripts(transcripts, referenceGenome_minus);
+
+	checkTranscriptsTranslate(transcripts_plus, referenceGenome);
+	checkTranscriptsTranslate(transcripts_minus, referenceGenome_minus);
+
+	p_per_epitope_forRet.clear();
+	for(int k : haplotypeLengths)
+	{
+		p_per_epitope_forRet[k].count("");
+	}
+
+	enumeratePeptideHaplotypes_improperFrequencies_plus(referenceGenome, transcripts_plus, variants, true, false, p_per_epitope_forRet);
+	enumeratePeptideHaplotypes_improperFrequencies_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, true, p_per_epitope_forRet);
+}
+
 /*
 void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour)
 {
