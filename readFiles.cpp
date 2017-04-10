@@ -857,6 +857,9 @@ std::string generateRandomAASequence(int length)
 }
 
 
+
+
+
 std::vector<std::string> partitionStringIntokMers(const std::string& str, int k)
 {
 	std::vector<std::string> forReturn;
