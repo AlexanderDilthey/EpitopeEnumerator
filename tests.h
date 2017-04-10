@@ -13,6 +13,7 @@
 #include <string>
 
 void randomTests();
+void randomTests_withVariants_2();
 void randomTests_withVariants();
 
 void assert_AA_sets_identical(const std::set<std::string>& s1, const std::set<std::string>& s2);

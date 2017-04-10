@@ -144,8 +144,9 @@ int main(int argc, char *argv[]) {
 	}
 	else if(testing == 2)
 	{
+		randomTests_withVariants_2();
 		randomTests_withVariants();
-		//randomTests();
+		randomTests();
 	}
 	else
 	{

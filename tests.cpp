@@ -9,7 +9,11 @@
 
 void randomTests_withVariants()
 {
-	// recovery of expected AA-mers
+	// this function generates a range of modified AA haplotypes and
+	// generates the SNVs corresponding to the changed codons
+	// The condition we impose is only whether we see all expected AAs,
+	// and not whether the generated AA set is fully correct.
+
 	for(unsigned int iteration = 0; iteration < 100; iteration++)
 	{
 		std::cout << "Testing iteration " << iteration << "\n" << std::flush;
@@ -81,7 +85,7 @@ void randomTests_withVariants()
 		std::cout << "Generated " << all_AA_sequences.size() << " sequence with " << substituted_codons << " substituted codons and " << variants << " variants.\n" << std::flush;
 
 		std::set<int> AA_mers = {5, 7, 12};
-		for(char strand : {'+'})
+		for(char strand : {'+', '-'})
 		{
 			// all as 1 exon, no variants
 			{
@@ -97,8 +101,20 @@ void randomTests_withVariants()
 					vv.referenceString = nucleotideSequnce.substr(vv.position, 1);
 					std::string variantAllele = {v.second};
 					vv.sampleAlleles = std::vector<std::string>({vv.referenceString, variantAllele});
-					variants["chr"][v.first] = vv;
+
+					if(strand == '-')
+					{
+						vv.position = referenceGenome["chr"].length() - vv.position - 1;
+						vv.referenceString = seq_reverse_complement(vv.referenceString);
+						for(std::string& a : vv.sampleAlleles)
+						{
+							a = seq_reverse_complement(a);
+						}
+					}
+					variants["chr"][vv.position] = vv;
 				}
+
+				checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
 
 				transcriptExon oneExon;
 				oneExon.valid = true;
@@ -259,6 +275,381 @@ void randomTests_withVariants()
 				}
 			}
 			*/
+		}
+	}
+}
+
+
+void randomTests_withVariants_2()
+{
+	// similar to randomTests_withVariants(), just that we're not starting
+	// with AA variants and fully check the generated AA set for correctness
+
+	for(unsigned int iteration = 0; iteration < 100; iteration++)
+	{
+		std::cout << "Testing iteration " << iteration << "\n" << std::flush;
+
+		std::string AAsequence = generateRandomAASequence(20);
+		std::string nucleotideSequnce = translateAASequence2Codons(AAsequence);
+
+		for(int doINDELs : {0, 1})
+		{
+			std::map<int, std::string> AAvariants;
+			std::map<int, std::string> codonVariants;
+			for(unsigned int i = 1; i < AAsequence.length(); i++)
+			{
+				if(doINDELs)
+				{
+					if(randomDouble() <= 0.5)
+					{
+						std::string newAA = randomAA();
+						std::string oldAA = AAsequence.substr(i, 1);
+						AAvariants[i] = oldAA+newAA;
+
+						std::string oldCodon = nucleotideSequnce.substr(3 * i, 3);
+						assert(translateCodon2AA(oldCodon) == oldAA);
+						std::string newCodon = translateAASequence2Codons(newAA);
+
+						codonVariants[3 * i] = oldCodon + newCodon;
+					}
+					else
+					{
+						AAvariants[i] = "";
+						codonVariants[3 * i] = "";
+					}
+				}
+				else
+				{
+					std::string newAA;
+					do {
+						newAA = randomAA();
+					} while(newAA == AAsequence.substr(i, 1));
+					AAvariants[i] = newAA;
+
+					std::string oldCodon = nucleotideSequnce.substr(3 * i, 3);
+					assert(translateCodon2AA(oldCodon) == AAsequence.substr(i, 1));
+					std::string newCodon = translateAASequence2Codons(newAA);
+					assert(oldCodon != newCodon);
+
+					codonVariants[3 * i] = newCodon;
+				}
+
+				i += randomNumber(4);
+			}
+
+
+			std::vector<std::string> AA_haplotypes = {""};
+			for(unsigned int pI = 0; pI < AAsequence.length(); pI++)
+			{
+				if(AAvariants.count(pI) == 0)
+				{
+					for(string& h : AA_haplotypes)
+					{
+						h.push_back(AAsequence.at(pI));
+					}
+				}
+				else
+				{
+					assert(AAvariants.at(pI) != AAsequence.substr(pI, 1));
+					size_t n_existing_haplotypes = AA_haplotypes.size();
+					for(unsigned int hI = 0; hI < n_existing_haplotypes; hI++)
+					{
+						AA_haplotypes.push_back(AA_haplotypes.at(hI));
+						AA_haplotypes.at(hI).append(AAsequence.substr(pI, 1));
+						AA_haplotypes.back().append(AAvariants.at(pI));
+					}
+				}
+			}
+
+			assert(AA_haplotypes.at(0) == AAsequence);
+
+			std::cout << "Generated " << codonVariants.size() << " substituted codons and " << AA_haplotypes.size() << " AA haplotypes.\n" << std::flush;
+
+			std::set<int> AA_mers = {5, 7, 12};
+			for(char strand : {'+', '-'})
+			{
+				// all as 1 exon, no variants
+				{
+					for(int intermediarySequence : {0, 1})
+					{
+						std::map<std::string, std::string> referenceGenome;
+						referenceGenome["chr"] = "";
+
+						int coveredBases = 0;
+						int currentExonStart = 0;
+						std::vector<std::pair<int, int>> exons;
+						int offset_added_bases = 0;
+						std::map<int, int> translation_coordinates_beforeExons_toAfterExons;
+						while(coveredBases < (int)nucleotideSequnce.length())
+						{
+							int max_exon_length_in_AA = (nucleotideSequnce.length() - currentExonStart)/3;
+							int exon_length = randomNumber(max_exon_length_in_AA) * 3;
+							int exon_stop_pos = currentExonStart + exon_length - 1;
+							assert(exon_stop_pos < (int)nucleotideSequnce.length());
+							assert(exon_stop_pos >= ((int)currentExonStart - 1));
+
+
+							for(int pI = currentExonStart; pI <= exon_stop_pos; pI++)
+							{
+								translation_coordinates_beforeExons_toAfterExons[pI] = offset_added_bases+pI;
+							}
+							exons.push_back(make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+							// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
+
+							if(currentExonStart <= exon_stop_pos)
+							{
+								referenceGenome.at("chr").append(nucleotideSequnce.substr(currentExonStart, exon_stop_pos - currentExonStart + 1));
+							}
+
+							coveredBases = (exon_stop_pos+1);
+							currentExonStart = exon_stop_pos + 1;
+
+							if(intermediarySequence)
+							{
+								int random_add_length = randomNumber(1000);
+								if(random_add_length)
+								{
+									referenceGenome.at("chr").append(generateRandomNucleotideSequence(random_add_length));
+									offset_added_bases += random_add_length;
+								}
+							}
+						}
+
+						if(intermediarySequence == 0)
+							assert(exons.back().second == ((int)nucleotideSequnce.length() - 1));
+
+						std::string referenceGenome_plus = referenceGenome.at("chr");
+						if(strand == '-')
+						{
+							referenceGenome["chr"] = seq_reverse_complement(referenceGenome.at("chr"));
+						}
+
+
+						std::vector<transcriptExon> transcript_exons;
+						for(auto e : exons)
+						{
+							transcriptExon thisExon;
+							if(e.first <= e.second)
+							{
+								thisExon.valid = true;
+								thisExon.firstPos = e.first;
+								thisExon.lastPos = e.second;
+							}
+							transcript_exons.push_back(thisExon);
+						}
+
+
+
+						if(strand == '-')
+						{
+							for(transcriptExon& e : transcript_exons)
+							{
+								e.firstPos = referenceGenome["chr"].length() - e.firstPos - 1;
+								e.lastPos = referenceGenome["chr"].length() - e.lastPos - 1;
+								assert(e.firstPos >= e.lastPos);
+								int third = e.firstPos;
+								e.firstPos = e.lastPos;
+								e.lastPos = third;
+							}
+						}
+
+						transcript oneTranscript;
+						oneTranscript.chromosomeID = "chr";
+						oneTranscript.geneName = "testGene";
+						oneTranscript.strand = strand;
+						oneTranscript.exons = transcript_exons;
+
+						std::vector<transcript> transcripts = {oneTranscript};
+
+						std::map<std::string, std::map<int, variantFromVCF>> variants;
+						for(auto v : codonVariants)
+						{
+							variantFromVCF vv;
+							vv.chromosomeID = "chr";
+							vv.position = translation_coordinates_beforeExons_toAfterExons.at(v.first);
+
+							vv.referenceString = nucleotideSequnce.substr(v.first, 3);
+							assert(vv.referenceString == referenceGenome_plus.substr(vv.position, 3));
+
+							std::string variantAllele = {v.second};
+							if(variantAllele.length() == 0)
+							{
+								variantAllele = "---";
+							}
+							else if(variantAllele.length() == 6)
+							{
+								vv.referenceString.append("---");
+							}
+							assert(vv.referenceString.length() == variantAllele.length());
+
+							vv.sampleAlleles = std::vector<std::string>({vv.referenceString, variantAllele});
+
+							if(strand == '-')
+							{
+								//std::cerr << "Variant reference: " << vv.referenceString << "\n";
+								//std::cerr << "vv.position: " << vv.position << "\n";
+
+								vv.position = referenceGenome["chr"].length() - vv.position - countCharacters_noGaps(vv.referenceString);
+								vv.referenceString = seq_reverse_complement(vv.referenceString);
+
+								//std::cerr << "- Variant reference: " << vv.referenceString << "\n";
+								//std::cerr << "- vv.position: " << vv.position << "\n";
+								//std::cerr << std::flush;
+
+								for(std::string& a : vv.sampleAlleles)
+								{
+									a = seq_reverse_complement(a);
+								}
+							}
+							variants["chr"][vv.position] = vv;
+						}
+
+						checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
+
+						std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
+						for(auto k : AA_mers)
+						{
+							haplotypeStore[k].count("");
+						}
+
+						enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, haplotypeStore);
+
+						for(auto k : AA_mers)
+						{
+							std::set<std::string> expected_AAs;
+							for(auto aaS : AA_haplotypes)
+							{
+								std::string aaS_noGaps = removeGaps(aaS);
+								std::vector<std::string> aa = partitionStringIntokMers(aaS_noGaps, k);
+								expected_AAs.insert(aa.begin(), aa.end());
+							}
+							assert(haplotypeStore.count(k));
+
+							std::set<std::string> got_AAs;
+							for(auto AAmers : haplotypeStore.at(k))
+							{
+								got_AAs.insert(AAmers.first);
+							}
+
+							assert_AA_sets_identical(got_AAs,  expected_AAs);
+						}
+					}
+				}
+
+				/*
+				{
+					for(int intermediarySequence : {0, 1})
+					{
+						std::map<std::string, std::string> referenceGenome;
+						referenceGenome["chr"] = "";
+
+						int coveredBases = 0;
+						int currentExonStart = 0;
+						std::vector<std::pair<int, int>> exons;
+						int offset_added_bases = 0;
+						while(coveredBases < (int)nucleotideSequnce.length())
+						{
+							int max_exon_length = nucleotideSequnce.length() - currentExonStart;
+							int exon_length = randomNumber(max_exon_length);
+							int exon_stop_pos = currentExonStart + exon_length - 1;
+							assert(exon_stop_pos < (int)nucleotideSequnce.length());
+							assert(exon_stop_pos >= ((int)currentExonStart - 1));
+
+
+							exons.push_back(make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+							// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
+
+							if(currentExonStart <= exon_stop_pos)
+							{
+								referenceGenome.at("chr").append(nucleotideSequnce.substr(currentExonStart, exon_stop_pos - currentExonStart + 1));
+							}
+
+							coveredBases = (exon_stop_pos+1);
+							currentExonStart = exon_stop_pos + 1;
+
+							if(intermediarySequence)
+							{
+								int random_add_length = randomNumber(1000);
+								if(random_add_length)
+								{
+									referenceGenome.at("chr").append(generateRandomNucleotideSequence(random_add_length));
+									offset_added_bases += random_add_length;
+								}
+							}
+						}
+
+						std::cerr << exons.back().second << " " << ((int)nucleotideSequnce.length() - 1) << "\n" << std::flush;
+
+						if(intermediarySequence == 0)
+							assert(exons.back().second == ((int)nucleotideSequnce.length() - 1));
+
+						if(strand == '-')
+						{
+							referenceGenome["chr"] = seq_reverse_complement(referenceGenome.at("chr"));
+						}
+
+
+						std::map<std::string, std::map<int, variantFromVCF>> variants;
+
+						std::vector<transcriptExon> transcript_exons;
+						for(auto e : exons)
+						{
+							transcriptExon thisExon;
+							if(e.first <= e.second)
+							{
+								thisExon.valid = true;
+								thisExon.firstPos = e.first;
+								thisExon.lastPos = e.second;
+							}
+							transcript_exons.push_back(thisExon);
+						}
+
+						if(strand == '-')
+						{
+							for(transcriptExon& e : transcript_exons)
+							{
+								e.firstPos = referenceGenome["chr"].length() - e.firstPos - 1;
+								e.lastPos = referenceGenome["chr"].length() - e.lastPos - 1;
+								assert(e.firstPos >= e.lastPos);
+								int third = e.firstPos;
+								e.firstPos = e.lastPos;
+								e.lastPos = third;
+							}
+						}
+
+						transcript oneTranscript;
+						oneTranscript.chromosomeID = "chr";
+						oneTranscript.geneName = "testGene";
+						oneTranscript.strand = strand;
+						oneTranscript.exons = transcript_exons;
+
+						std::vector<transcript> transcripts = {oneTranscript};
+
+						std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
+						for(auto k : AA_mers)
+						{
+							haplotypeStore[k].count("");
+						}
+
+						enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, haplotypeStore);
+
+						for(auto k : AA_mers)
+						{
+							std::vector<std::string> expected_AAs = partitionStringIntokMers(AAsequence, k);
+							std::set<std::string> expected_AAs_set(expected_AAs.begin(), expected_AAs.end());
+							assert(haplotypeStore.count(k));
+							std::set<std::string> got_AAs;
+							for(auto AAmers : haplotypeStore.at(k))
+							{
+								got_AAs.insert(AAmers.first);
+							}
+
+							assert_AA_sets_identical(got_AAs,  expected_AAs_set);
+						}
+					}
+				}
+				*/
+			}
 		}
 	}
 }
