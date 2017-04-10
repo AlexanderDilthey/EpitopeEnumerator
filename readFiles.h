@@ -21,6 +21,10 @@ public:
 	unsigned int position;
 	std::string referenceString;
 	std::vector<std::string> sampleAlleles;
+	std::vector<bool> sampleAlleles_interesting;
+	bool isRef() const;
+	void allAllelesNotInteresting();
+
 };
 
 class transcriptExon {

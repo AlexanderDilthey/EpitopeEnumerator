@@ -10,7 +10,7 @@
 #include "readFiles.h"
 
 //void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour);
-std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<std::vector<int>>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int startReferencePos, unsigned int lastReferencePos);
+std::tuple<std::string, std::vector<int>, std::vector<bool>, std::vector<std::string>, std::vector<std::vector<int>>, std::vector<std::vector<bool>>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int startReferencePos, unsigned int lastReferencePos);
 
 using fragmentT = std::tuple<std::string, std::vector<std::pair<int, int>>, std::vector<bool>>;
 

@@ -101,6 +101,7 @@ void randomTests_withVariants()
 					vv.referenceString = nucleotideSequnce.substr(vv.position, 1);
 					std::string variantAllele = {v.second};
 					vv.sampleAlleles = std::vector<std::string>({vv.referenceString, variantAllele});
+					vv.allAllelesNotInteresting();
 
 					if(strand == '-')
 					{
@@ -479,6 +480,7 @@ void randomTests_withVariants_2()
 							assert(vv.referenceString.length() == variantAllele.length());
 
 							vv.sampleAlleles = std::vector<std::string>({vv.referenceString, variantAllele});
+							vv.allAllelesNotInteresting();
 
 							if(strand == '-')
 							{
@@ -829,12 +831,14 @@ void some_simple_tests()
 		oneVariant.position = 10;
 		oneVariant.referenceString = "C";
 		oneVariant.sampleAlleles = {"C", "T"};
+		oneVariant.sampleAlleles_interesting = {false, true};
 
 		variantFromVCF oneVariant_2;
 		oneVariant_2.chromosomeID = "chr";
 		oneVariant_2.position = 13;
 		oneVariant_2.referenceString = "C";
-		oneVariant_2.sampleAlleles = {"C", "T"};
+		oneVariant_2.sampleAlleles = {"T", "T"};
+		oneVariant_2.sampleAlleles_interesting = {true, true};
 
 		variants["chr"][10] = oneVariant;
 		variants["chr"][13] = oneVariant_2;
@@ -858,8 +862,11 @@ void some_simple_tests()
 
 		std::vector<transcript> transcripts_plus = {oneTranscript};
 
+		checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
+
 		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+
 		enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, {6}, p_per_epitope, p_per_epitope_locations);
 
 		for(auto haplotypesOneLength : p_per_epitope)
@@ -870,6 +877,17 @@ void some_simple_tests()
 				const std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>& probabilites_and_positions = fragment.second;
 				double maxP = probabilites_and_positions.first;
 				std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
+				for(auto positions_and_interesting : probabilites_and_positions.second)
+				{
+					std::vector<std::pair<int, int>> positions = positions_and_interesting.first;
+					std::vector<bool> interesting = positions_and_interesting.second;
+					std::cout << "\t";
+					for(auto i : interesting)
+					{
+						std::cout << (int)i;
+					}
+					std::cout << "\n" << std::flush;
+				}
 			}
 		}
 	}
@@ -888,12 +906,14 @@ void some_simple_tests()
 		oneVariant.position = 10;
 		oneVariant.referenceString = "C";
 		oneVariant.sampleAlleles = {"C", "T"};
+		oneVariant.sampleAlleles_interesting = {false, true};
 
 		variantFromVCF oneVariant_2;
 		oneVariant_2.chromosomeID = "chr";
 		oneVariant_2.position = 13;
 		oneVariant_2.referenceString = "C";
 		oneVariant_2.sampleAlleles = {"C", "T"};
+		oneVariant_2.sampleAlleles_interesting = {false, true};
 
 		variants["chr"][10] = oneVariant;
 		variants["chr"][13] = oneVariant_2;
@@ -914,6 +934,7 @@ void some_simple_tests()
 
 		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+
 		enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, {6}, p_per_epitope, p_per_epitope_locations);
 
 		for(auto haplotypesOneLength : p_per_epitope)
@@ -924,6 +945,17 @@ void some_simple_tests()
 				const std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>& probabilites_and_positions = fragment.second;
 				double maxP = probabilites_and_positions.first;
 				std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
+				for(auto positions_and_interesting : probabilites_and_positions.second)
+				{
+					std::vector<std::pair<int, int>> positions = positions_and_interesting.first;
+					std::vector<bool> interesting = positions_and_interesting.second;
+					std::cout << "\t";
+					for(auto i : interesting)
+					{
+						std::cout << (int)i;
+					}
+					std::cout << "\n" << std::flush;
+				}
 			}
 		}
 	}

@@ -104,6 +104,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 						assert(number_2_allele.count(a_numeric));
 						thisVariant.sampleAlleles.push_back(number_2_allele.at(a_numeric));
 					}
+					thisVariant.sampleAlleles_interesting.resize(thisVariant.sampleAlleles.size(), false);
 
 					unsigned int maxLength = thisVariant.referenceString.length();
 					for(auto a : thisVariant.sampleAlleles)
@@ -582,6 +583,7 @@ std::map<std::string, std::map<int, variantFromVCF>> getMinusStrandVariants(cons
 			minusVariant.chromosomeID = existingVariant.chromosomeID;
 			minusVariant.position = referenceContigLength - existingVariant_lastVariantPosition - 1;
 			minusVariant.referenceString = seq_reverse_complement(existingVariant.referenceString);
+			minusVariant.sampleAlleles_interesting = existingVariant.sampleAlleles_interesting;
 			assert(referenceGenome_minus.at(minusVariant.chromosomeID).substr(minusVariant.position, countCharacters_noGaps(minusVariant.referenceString)) == removeGaps(minusVariant.referenceString));
 			for(auto sA : existingVariant.sampleAlleles)
 			{
@@ -666,6 +668,7 @@ void checkVariantsConsistentWithReferenceGenome(const std::map<std::string, std:
 			{
 				assert(sA.length() == variant.referenceString.length());
 			}
+			assert(variant.sampleAlleles.size() == variant.sampleAlleles_interesting.size());
 
 			std::string supposedReferenceString = referenceGenome.at(variant.chromosomeID).substr(variant.position, countCharacters_noGaps(variant.referenceString));
 			std::string variant_referenceString_noGaps = removeGaps(variant.referenceString);
@@ -704,14 +707,46 @@ std::map<std::string, std::map<int, variantFromVCF>> combineVariants(const std::
 		assert(positionsCoveredByVariant.count(chromosomeID));
 		for(auto positionAndVariant : variantsPerChromosome.second)
 		{
-			const variantFromVCF& tumourVariant = positionAndVariant.second;
+			variantFromVCF tumourVariant = positionAndVariant.second;
+			assert(tumourVariant.sampleAlleles_interesting.size() == 2);
+
 			unsigned int lastPosition = tumourVariant.position + countCharacters_noGaps(tumourVariant.referenceString) - 1;
 
-			forReturn[tumourVariant.chromosomeID][tumourVariant.position] = tumourVariant;
+			std::set<std::string> normalAlleles;
+			if(variants_normalGenome.count(chromosomeID) && variants_normalGenome.at(chromosomeID).count(tumourVariant.position) && (removeGaps(variants_normalGenome.at(chromosomeID).at(tumourVariant.position).referenceString) == removeGaps(tumourVariant.referenceString)))
+			{
+				normalAlleles.insert(variants_normalGenome.at(chromosomeID).at(tumourVariant.position).sampleAlleles.begin(), variants_normalGenome.at(chromosomeID).at(tumourVariant.position).sampleAlleles.end());
+			}
+			else
+			{
+				bool noVariantsInNormal = true;
+				for(unsigned int pI = tumourVariant.position; pI <= lastPosition; pI++)
+				{
+					if(variants_normalGenome.count(chromosomeID) && variants_normalGenome.at(chromosomeID).count(pI) && (!variants_normalGenome.at(chromosomeID).at(pI).isRef()))
+					{
+						noVariantsInNormal = false;
+					}
+				}
+				if(noVariantsInNormal)
+				{
+					std::string referenceString = referenceGenome.at(chromosomeID).substr(tumourVariant.position, lastPosition - tumourVariant.position + 1);
+					normalAlleles.insert(referenceString);
+				}
+			}
+
+			std::vector<bool> tumourVariants_interesting; tumourVariants_interesting.reserve(2);
+			for(auto tV : tumourVariant.sampleAlleles)
+			{
+				tumourVariants_interesting.push_back((normalAlleles.count(tV)) ? false : true);
+			}
+			tumourVariant.sampleAlleles_interesting = tumourVariants_interesting;
+
 			for(unsigned int pI = tumourVariant.position; pI <= lastPosition; pI++)
 			{
 				positionsCoveredByVariant.at(tumourVariant.chromosomeID).at(pI) = true;
 			}
+			forReturn[tumourVariant.chromosomeID][tumourVariant.position] = tumourVariant;
+
 		}
 	}
 
@@ -876,4 +911,25 @@ std::vector<std::string> partitionStringIntokMers(const std::string& str, int k)
 	return forReturn;
 }
 
+
+bool variantFromVCF::isRef() const
+{
+	assert(sampleAlleles.size() > 0);
+	std::string referenceAllele_noGaps = removeGaps(referenceString);
+	for(auto a : sampleAlleles)
+	{
+		if(removeGaps(a) != referenceAllele_noGaps)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+void variantFromVCF::allAllelesNotInteresting()
+{
+	sampleAlleles_interesting.clear();
+	sampleAlleles_interesting.resize(sampleAlleles.size(), false);
+	assert(sampleAlleles_interesting.size() == sampleAlleles.size());
+}
 

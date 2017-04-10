@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
 	std::vector<std::string> ARG (argv + 1, argv + argc + !argc);
 	std::map<std::string, std::string> arguments;
 
-	int testing = 2;
+	int testing = 1;
 	if(testing == 1)
 	{
 		some_simple_tests();
@@ -270,6 +270,7 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	};
 
 	auto addHeterozygousStretch = [&](const std::vector<std::string>& sequences, const std::vector<std::vector<int>> referencePositions, const std::vector<std::vector<bool>>& interesting) -> void {
+
 		assert(sequences.size() == 2);
 		assert(sequences.size() == referencePositions.size());
 		assert(sequences.size() == interesting.size());
@@ -296,14 +297,18 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 		{
 			if(variants_plus.count(chromosomeID) && variants_plus.at(chromosomeID).count(referencePos))
 			{
-				std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<std::vector<int>>> reference_and_variantAlleles = get_reference_and_variantAlleles(variants_plus.at(chromosomeID).at(referencePos), referencePos, exon.lastPos);
+				std::tuple<std::string, std::vector<int>, std::vector<bool>, std::vector<std::string>, std::vector<std::vector<int>>, std::vector<std::vector<bool>>> reference_and_variantAlleles = get_reference_and_variantAlleles(variants_plus.at(chromosomeID).at(referencePos), referencePos, exon.lastPos);
 
-				assert(std::get<2>(reference_and_variantAlleles).size() == 2);
-				bool homozygous = (std::get<2>(reference_and_variantAlleles).at(0) == std::get<2>(reference_and_variantAlleles).at(1)) && (std::get<3>(reference_and_variantAlleles).at(0) == std::get<3>(reference_and_variantAlleles).at(1));
+				assert(std::get<3>(reference_and_variantAlleles).size() == 2);
+
+				bool homozygous =
+						(std::get<3>(reference_and_variantAlleles).at(0) == std::get<3>(reference_and_variantAlleles).at(1)) &&
+						(std::get<4>(reference_and_variantAlleles).at(0) == std::get<4>(reference_and_variantAlleles).at(1)) &&
+						(std::get<5>(reference_and_variantAlleles).at(0) == std::get<5>(reference_and_variantAlleles).at(1));
 
 				// this is not really very interesting
 				std::vector<std::vector<bool>> extendWith_interesting;
-				for(const std::string& sampleAllele : std::get<2>(reference_and_variantAlleles))
+				for(const std::string& sampleAllele : std::get<3>(reference_and_variantAlleles))
 				{
 					if(isTumour)
 					{
@@ -321,11 +326,11 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 
 				if(homozygous)
 				{
-					addHomozygousStretch(std::get<2>(reference_and_variantAlleles).at(0),  std::get<3>(reference_and_variantAlleles).at(0), extendWith_interesting.at(0));
+					addHomozygousStretch(std::get<3>(reference_and_variantAlleles).at(0), std::get<4>(reference_and_variantAlleles).at(0), std::get<5>(reference_and_variantAlleles).at(0));
 				}
 				else
 				{
-					addHeterozygousStretch(std::get<2>(reference_and_variantAlleles), std::get<3>(reference_and_variantAlleles), extendWith_interesting);
+					addHeterozygousStretch(std::get<3>(reference_and_variantAlleles), std::get<4>(reference_and_variantAlleles), std::get<5>(reference_and_variantAlleles));
 				}
 
 				referenceSequence_forControl.append(std::get<0>(reference_and_variantAlleles));
@@ -522,6 +527,7 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 
 void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const std::string& sequence_1, const std::vector<int>& positions_1, const std::vector<bool>& interesting_1, const std::string& sequence_2, const std::vector<int>& positions_2, const std::vector<bool>& interesting_2, double p, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
 {
+
 	assert(p >= 0);
 	assert(p <= 1);
 
@@ -648,7 +654,7 @@ fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const s
 		if(runningCodon.length() == 3)
 		{
 			std::string translation = translateCodon2AA(runningCodon);
-			bool interesting = runningInteresting.at(0) || runningPositions.at(1) || runningPositions.at(2);
+			bool interesting = (runningInteresting.at(0) || runningInteresting.at(1) || runningInteresting.at(2));
 			int lastPos = -2;
 			int minPos = -2;
 			int maxPos = -2;
@@ -1258,12 +1264,13 @@ void enumeratePeptides(const std::map<std::string, std::string> referenceGenome_
 
 */
 
-std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<std::vector<int>>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int startReferencePos, unsigned int lastReferencePos)
+std::tuple<std::string, std::vector<int>, std::vector<bool>, std::vector<std::string>, std::vector<std::vector<int>>, std::vector<std::vector<bool>>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int startReferencePos, unsigned int lastReferencePos)
 {
 	assert(v.position <= lastReferencePos);
 
 	// check that we have variant alleles and that they are "aligned"
-	assert(v.sampleAlleles.size());
+	assert(v.sampleAlleles.size() == 2);
+	assert(v.sampleAlleles.size() == v.sampleAlleles_interesting.size());
 	for(const std::string& variantAllele : v.sampleAlleles)
 	{
 		assert(variantAllele.length() == v.referenceString.length());
@@ -1296,6 +1303,13 @@ std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<
 		return forReturn;
 	};
 
+	auto getInterestingVector = [](int length, bool interesting) -> std::vector<bool> {
+		std::vector<bool> forReturn;
+		forReturn.resize(length, interesting);
+		return forReturn;
+	};
+
+
 	assert(v.position == startReferencePos);
 	// if everything within last-position constraints, do nothing ...
 	unsigned int v_referenceString_length_noGaps = countCharacters_noGaps(v.referenceString);
@@ -1308,7 +1322,9 @@ std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<
 		{
 			referencePositions_per_sampleAllele.push_back(referencePositionVector);
 		}
-		return make_tuple(v.referenceString, referencePositionVector, v.sampleAlleles, referencePositions_per_sampleAllele);
+
+		std::vector<std::vector<bool>> forReturn_sampleAlleles_interesting({getInterestingVector(v.referenceString.length(), v.sampleAlleles_interesting.at(0)), getInterestingVector(v.referenceString.length(), v.sampleAlleles_interesting.at(1))});
+		return make_tuple(v.referenceString, referencePositionVector, getInterestingVector(v.referenceString.length(), false), v.sampleAlleles, referencePositions_per_sampleAllele, forReturn_sampleAlleles_interesting);
 	}
 	// else: cut variant alleles accordingly
 	else
@@ -1352,7 +1368,8 @@ std::tuple<std::string, std::vector<int>, std::vector<std::string>, std::vector<
 			referencePositions_per_returnAllele.push_back(referencePositionVector);
 		}
 
-		return make_tuple(forReturn_ref, referencePositionVector, forReturn_alleles, referencePositions_per_returnAllele);
+		std::vector<std::vector<bool>> forReturn_sampleAlleles_interesting({getInterestingVector(forReturn_ref.length(), v.sampleAlleles_interesting.at(0)), getInterestingVector(forReturn_ref.length(), v.sampleAlleles_interesting.at(1))});
+		return make_tuple(forReturn_ref, referencePositionVector, getInterestingVector(forReturn_ref.length(), false), forReturn_alleles, referencePositions_per_returnAllele, forReturn_sampleAlleles_interesting);
 	}
 }
 
