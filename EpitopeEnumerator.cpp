@@ -29,124 +29,15 @@ int main(int argc, char *argv[]) {
 	std::map<std::string, std::string> arguments;
 
 	int testing = 2;
-	if(testing == 0)
+	if(testing == 1)
 	{
-		{
-			std::map<std::string, std::string> referenceGenome;
-			referenceGenome["chr"] = "ACGGCAGCAGCAGCAGCAGCAAAA"; // last pos: 23 AAAAAAK
-			//                        0         1         2
-			//                                  T  T
-			referenceGenome["chr"].append("NNNNNNNNNN"); // last pos: 33
-			referenceGenome["chr"].append("TCGTCGTCGTCGTCGTCGTCGTCGTCGTAA"); // last pos: 45
-
-			std::map<std::string, std::map<int, variantFromVCF>> variants;
-
-			variantFromVCF oneVariant;
-			oneVariant.chromosomeID = "chr";
-			oneVariant.position = 10;
-			oneVariant.referenceString = "C";
-			oneVariant.sampleAlleles = {"C", "T"};
-
-			variantFromVCF oneVariant_2;
-			oneVariant_2.chromosomeID = "chr";
-			oneVariant_2.position = 13;
-			oneVariant_2.referenceString = "C";
-			oneVariant_2.sampleAlleles = {"C", "T"};
-
-			variants["chr"][10] = oneVariant;
-			variants["chr"][13] = oneVariant_2;
-
-			// std::map<int, variantFromVCF>();
-
-			transcriptExon oneExon;
-			oneExon.valid = true;
-			oneExon.firstPos = 3;
-			oneExon.lastPos = oneExon.firstPos + 7 * 3 - 1; // 23
-			transcriptExon twoExon;
-			twoExon.valid = true;
-			twoExon.firstPos = 34;
-			twoExon.lastPos = 63; // 23
-
-			transcript oneTranscript;
-			oneTranscript.chromosomeID = "chr";
-			oneTranscript.geneName = "testGene";
-			oneTranscript.strand = '+';
-			oneTranscript.exons = {oneExon, twoExon};
-
-			std::vector<transcript> transcripts_plus = {oneTranscript};
-
-			std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
-			haplotypeStore[6] = std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>();
-			enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, haplotypeStore);
-
-			for(auto haplotypesOneLength : haplotypeStore)
-			{
-				std::cout << "Length " << haplotypesOneLength.first << ": " << haplotypesOneLength.second.size() << "\n" << std::flush;
-				for(auto fragment : haplotypesOneLength.second)
-				{
-					const std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>& probabilites_and_positions = fragment.second;
-					double maxP = probabilites_and_positions.crbegin()->first;
-					std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
-				}
-			}
-		}
-		if(1 == 0)
-		{
-			std::map<std::string, std::string> referenceGenome;
-			referenceGenome["chr"] = "ACGGCAGCAGCAGCAGCAGCATAATTT";
-			//                        0         1         2
-			std::map<std::string, std::map<int, variantFromVCF>> variants;
-
-			variantFromVCF oneVariant;
-			oneVariant.chromosomeID = "chr";
-			oneVariant.position = 10;
-			oneVariant.referenceString = "C";
-			oneVariant.sampleAlleles = {"C", "T"};
-
-			variantFromVCF oneVariant_2;
-			oneVariant_2.chromosomeID = "chr";
-			oneVariant_2.position = 13;
-			oneVariant_2.referenceString = "C";
-			oneVariant_2.sampleAlleles = {"C", "T"};
-
-			variants["chr"][10] = oneVariant;
-			variants["chr"][13] = oneVariant_2;
-
-			// std::map<int, variantFromVCF>();
-
-			transcriptExon oneExon;
-			oneExon.valid = true;
-			oneExon.firstPos = 3;
-			oneExon.lastPos = oneExon.firstPos + 7 * 3 - 1;
-			transcript oneTranscript;
-			oneTranscript.chromosomeID = "chr";
-			oneTranscript.geneName = "testGene";
-			oneTranscript.strand = '+';
-			oneTranscript.exons = {oneExon};
-
-			std::vector<transcript> transcripts_plus = {oneTranscript};
-
-			std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
-			haplotypeStore[6] = std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>();
-			enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, haplotypeStore);
-
-			for(auto haplotypesOneLength : haplotypeStore)
-			{
-				std::cout << "Length " << haplotypesOneLength.first << ": " << haplotypesOneLength.second.size() << "\n" << std::flush;
-				for(auto fragment : haplotypesOneLength.second)
-				{
-					const std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>& probabilites_and_positions = fragment.second;
-					double maxP = probabilites_and_positions.crbegin()->first;
-					std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
-				}
-			}
-		}
+		some_simple_tests();
 	}
 	else if(testing == 2)
 	{
 		randomTests_withVariants_2();
-		randomTests_withVariants();
 		randomTests();
+		randomTests_withVariants();
 	}
 	else
 	{
@@ -184,16 +75,18 @@ int main(int argc, char *argv[]) {
 		haplotypeStore[6] = std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>();
 		//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, haplotypeStore);
 
-		enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, haplotypeStore);
+		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+		enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, {6}, p_per_epitope, p_per_epitope_locations);
 
-		for(auto haplotypesOneLength : haplotypeStore)
+		for(auto haplotypesOneLength : p_per_epitope)
 		{
 			std::cout << "Length " << haplotypesOneLength.first << ": " << haplotypesOneLength.second.size() << "\n" << std::flush;
 			for(auto fragment : haplotypesOneLength.second)
 			{
-				const std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>& probabilites_and_positions = fragment.second;
-				double maxP = probabilites_and_positions.crbegin()->first;
-				std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
+				const std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>& probability_and_positions = fragment.second;
+				double p = probability_and_positions.first;
+				std::cout << "\t" << fragment.first << " " << p << "\n" << std::flush;
 			}
 		}
 		assert(1 == 2);
@@ -206,7 +99,7 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-void enumeratePeptideHaplotypes(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, bool isTumour, std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>>& haplotypeStore)
+void enumeratePeptideHaplotypes(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, bool isTumour, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
 {
 	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);
 	std::map<std::string, std::map<int, variantFromVCF>> variants_minus = getMinusStrandVariants(variants, referenceGenome_minus);
@@ -220,14 +113,34 @@ void enumeratePeptideHaplotypes(const std::map<std::string, std::string> referen
 	checkTranscriptsTranslate(transcripts_plus, referenceGenome);
 	checkTranscriptsTranslate(transcripts_minus, referenceGenome_minus);
 
-	enumeratePeptideHaplotypes_plus(referenceGenome, transcripts_plus, variants, true, haplotypeStore);
-	enumeratePeptideHaplotypes_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, haplotypeStore);
+	p_per_epitope_forRet.clear();
+	p_per_epitope_locations_forRet.clear();
+	for(int k : haplotypeLengths)
+	{
+		p_per_epitope_forRet[k].count("");
+		p_per_epitope_locations_forRet[k].count("");
+	}
+
+	enumeratePeptideHaplotypes_plus(referenceGenome, transcripts_plus, variants, true, false, p_per_epitope_forRet, p_per_epitope_locations_forRet);
+	enumeratePeptideHaplotypes_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, true, p_per_epitope_forRet, p_per_epitope_locations_forRet);
 }
 
-void enumeratePeptideHaplotypes_plus(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>>& haplotypeStore)
+// this function returns:
+// p_per_epitope_forRet: for each occurring epitope, the maximum probability of occurrence over all transcripts and ALL possible locations (without probabilities)
+// p_per_epitope_locations_forRet: for each occurring epitope, possible locations and their marginal maximum probabilities over all transcripts
+void enumeratePeptideHaplotypes_plus(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
 {
 	checkVariantsConsistentWithReferenceGenome(variants_plus, referenceGenome_plus); // paranoid
+	assert(p_per_epitope_forRet.size() == p_per_epitope_locations_forRet.size());
 
+	std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> oneTranscript_p_per_epitope_forRet;
+	std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> oneTranscript_p_per_epitope_locations_forRet;
+	for(auto k : p_per_epitope_forRet)
+	{
+		assert(p_per_epitope_locations_forRet.count(k.first));
+		oneTranscript_p_per_epitope_forRet[k.first].count("");
+		oneTranscript_p_per_epitope_locations_forRet[k.first].count("");
+	}
 	for(unsigned int transcriptI = 0; transcriptI < transcripts_plus.size(); transcriptI++)
 	{
 		const transcript& transcript = transcripts_plus.at(transcriptI);
@@ -236,11 +149,72 @@ void enumeratePeptideHaplotypes_plus(const std::map<std::string, std::string> re
 		if(referenceGenome_plus.count(chromosomeID) == 0)
 			continue;
 
-		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, isTumour, haplotypeStore);
+		// the oneTranscript_* maps are clear'ed within enumeratePeptideHaplotypes_oneTranscript
+		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, isTumour, oneTranscript_p_per_epitope_forRet, oneTranscript_p_per_epitope_locations_forRet);
+
+		for(auto k : p_per_epitope_forRet)
+		{
+			for(auto epitope : oneTranscript_p_per_epitope_forRet.at(k.first))
+			{
+				std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>> positions = epitope.second.second;
+
+				if(invertPositions)
+				{
+					std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>> inverted_positions;
+					for(auto p : positions)
+					{
+						std::pair<std::vector<std::pair<int, int>>, std::vector<bool>> inverted_p = p;
+						for(std::pair<int, int>& pP : inverted_p.first)
+						{
+							size_t referenceContig_length = referenceGenome_plus.at(chromosomeID).length();
+							pP.first = referenceContig_length - pP.first - 1;
+							pP.second = referenceContig_length - pP.second - 1;
+						}
+						inverted_positions.insert(p);
+					}
+					positions = inverted_positions;
+				}
+
+				if(p_per_epitope_forRet.at(k.first).count(epitope.first))
+				{
+					if(p_per_epitope_forRet.at(k.first).at(epitope.first).first < epitope.second.first)
+					{
+						p_per_epitope_forRet.at(k.first).at(epitope.first).first = epitope.second.first;
+					}
+					p_per_epitope_forRet.at(k.first).at(epitope.first).second.insert(positions.begin(), positions.end());
+				}
+				else
+				{
+					p_per_epitope_forRet.at(k.first)[epitope.first].first = epitope.second.first;
+					p_per_epitope_forRet.at(k.first)[epitope.first].second = positions;
+				}
+			}
+			for(auto epitope : oneTranscript_p_per_epitope_locations_forRet.at(k.first))
+			{
+				for(auto location : epitope.second)
+				{
+					if(p_per_epitope_locations_forRet.at(k.first)[epitope.first].count(location.first))
+					{
+						if(p_per_epitope_locations_forRet.at(k.first).at(epitope.first).at(location.first) < location.second)
+						{
+							p_per_epitope_locations_forRet.at(k.first).at(epitope.first).at(location.first) = location.second;
+						}
+					}
+					else
+					{
+						p_per_epitope_locations_forRet.at(k.first)[epitope.first][location.first] = location.second;
+					}
+				}
+			}
+		}
 	}
 }
 
-void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>>& haplotypeStore)
+// this function returns:
+// p_per_epitope_forRet: for each occurring epitope, the probability of occurrence and possible locations (without probabilities)
+// p_per_epitope_locations_forRet: for each occurring epitope, possible locations and their marginal probabilities
+// It would also be possible to return, for each epitope, the probabilities over sets of locations, but this doesn't currently seem very useful
+void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool isTumour, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
 {
 	// validate exons - left to right, non-overlapping
 	int n_exons = transcript.exons.size();
@@ -491,11 +465,13 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	assert(nucleotideHaplotype_1.find("#") == std::string::npos);
 	assert(nucleotideHaplotype_2.find("#") == std::string::npos);
 
-	std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> fragmentStore_thisTranscript;
-	for(auto hpS : haplotypeStore)
+	assert(p_per_epitope_forRet.size() == p_per_epitope_locations_forRet.size());
+	for(auto k : p_per_epitope_forRet)
 	{
-		fragmentStore_thisTranscript[hpS.first] = std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>();
+		p_per_epitope_forRet.at(k.first).clear();
+		p_per_epitope_locations_forRet.at(k.first).clear();
 	}
+
 	bool done = false;
 	int consideredHaplotypes = 0;
 	while(!done)
@@ -510,7 +486,8 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 			nucleotideHaplotype_2_positions,
 			nucleotideHaplotype_2_interesting,
 			1.0/(double)n_haplotype_pairs,
-			fragmentStore_thisTranscript
+			p_per_epitope_forRet,
+			p_per_epitope_locations_forRet
 		);
 		consideredHaplotypes++;
 
@@ -538,23 +515,12 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	}
 	assert(done);
 
-
-
-
-	for(auto length_fragments : fragmentStore_thisTranscript)
-	{
-		for(auto fragment : length_fragments.second)
-		{
-			const std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>& possibleLocations = fragment.second;
-			haplotypeStore[length_fragments.first][fragment.first][possibleLocations.first].insert(possibleLocations.second);
-		}
-	}
 	std::cout << "Expected haplotype pairs: " << n_haplotype_pairs << " // processed: " << consideredHaplotypes << "\n" << std::flush;
 
 	assert((int)n_haplotype_pairs == consideredHaplotypes);
 }
 
-void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const std::string& sequence_1, const std::vector<int>& positions_1, const std::vector<bool>& interesting_1, const std::string& sequence_2, const std::vector<int>& positions_2, const std::vector<bool>& interesting_2, double p, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& fragmentStore)
+void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const std::string& sequence_1, const std::vector<int>& positions_1, const std::vector<bool>& interesting_1, const std::string& sequence_2, const std::vector<int>& positions_2, const std::vector<bool>& interesting_2, double p, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
 {
 	assert(p >= 0);
 	assert(p <= 1);
@@ -565,10 +531,12 @@ void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const
 	assert(sequence_2.length() == interesting_2.size());
 
 	std::set<int> fragmentSizes;
-	for(auto f : fragmentStore)
+	assert(p_per_epitope_forRet.size() == p_per_epitope_locations_forRet.size());
+	for(auto f : p_per_epitope_forRet)
 	{
 		assert(f.first > 0);
 		fragmentSizes.insert(f.first);
+		assert(p_per_epitope_locations_forRet.count(f.first));
 	}
 
 	for(int fragmentSize : fragmentSizes)
@@ -590,24 +558,42 @@ void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const
 		combined_fragments.insert(fragments_1.begin(), fragments_1.end());
 		combined_fragments.insert(fragments_2.begin(), fragments_2.end());
 
+		std::map<std::string, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>> peptide_2_position;
 		for(const fragmentT& fragment : combined_fragments)
 		{
-			if(std::get<0>(fragment) == "SSSSSS")
+			peptide_2_position[std::get<0>(fragment)].insert(make_pair(std::get<1>(fragment), std::get<2>(fragment)));
+		}
+
+		for(auto peptide_and_positions : peptide_2_position)
+		{
+			const std::string& peptide = peptide_and_positions.first;
+
+			if(peptide == "SSSSSS")
 			{
-			//	printFragment(fragment);
+				//std::cout << "p: " << p << "\n" << std::flush;
+				//printFragment(fragment);
 			}
 
-			if(fragmentStore.at(fragmentSize).count(std::get<0>(fragment)))
+			if(p_per_epitope_forRet.at(fragmentSize).count(peptide))
 			{
-				fragmentStore.at(fragmentSize).at(std::get<0>(fragment)).first += p;
-				fragmentStore.at(fragmentSize).at(std::get<0>(fragment)).second.insert(make_pair(std::get<1>(fragment), std::get<2>(fragment)));
+				p_per_epitope_forRet.at(fragmentSize).at(peptide).first += p;
+				p_per_epitope_forRet.at(fragmentSize).at(peptide).second.insert(peptide_and_positions.second.begin(), peptide_and_positions.second.end());
 			}
 			else
 			{
-				//std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>> newPair;
-				//newPair.first = p;
-				//newPair.second =
-				fragmentStore.at(fragmentSize)[std::get<0>(fragment)] = make_pair(p, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>({make_pair(std::get<1>(fragment), std::get<2>(fragment))}));
+				p_per_epitope_forRet.at(fragmentSize)[peptide] = make_pair(p, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>({peptide_and_positions.second}));
+			}
+
+			for(auto thisLocation : peptide_and_positions.second)
+			{
+				if(p_per_epitope_locations_forRet.at(fragmentSize)[peptide].count(thisLocation))
+				{
+					p_per_epitope_locations_forRet.at(fragmentSize)[peptide].at(thisLocation) += p;
+				}
+				else
+				{
+					p_per_epitope_locations_forRet.at(fragmentSize)[peptide][thisLocation] = p;
+				}
 			}
 		}
 	}

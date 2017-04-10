@@ -504,7 +504,7 @@ std::vector<transcript> getPlusStrandTranscripts(const std::vector<transcript>& 
 		}
 	}
 
-	std::cout << "getPlusStrandTranscripts(..): " << forReturn.size() << " plus-strand transcripts.\n" << std::flush;
+	// std::cout << "getPlusStrandTranscripts(..): " << forReturn.size() << " plus-strand transcripts.\n" << std::flush;
 
 	return forReturn;
 }

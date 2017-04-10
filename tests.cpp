@@ -129,13 +129,9 @@ void randomTests_withVariants()
 
 				std::vector<transcript> transcripts = {oneTranscript};
 
-				std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
-				for(auto k : AA_mers)
-				{
-					haplotypeStore[k].count("");
-				}
-
-				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, haplotypeStore);
+				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+				std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 				for(auto k : AA_mers)
 				{
@@ -145,10 +141,10 @@ void randomTests_withVariants()
 						std::vector<std::string> aa = partitionStringIntokMers(aaS, k);
 						expected_AAs.insert(aa.begin(), aa.end());
 					}
-					assert(haplotypeStore.count(k));
+					assert(p_per_epitope.count(k));
 
 					std::set<std::string> got_AAs;
-					for(auto AAmers : haplotypeStore.at(k))
+					for(auto AAmers : p_per_epitope.at(k))
 					{
 						got_AAs.insert(AAmers.first);
 					}
@@ -506,13 +502,9 @@ void randomTests_withVariants_2()
 
 						checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
 
-						std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
-						for(auto k : AA_mers)
-						{
-							haplotypeStore[k].count("");
-						}
-
-						enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, haplotypeStore);
+						std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+						std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+						enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 						for(auto k : AA_mers)
 						{
@@ -523,10 +515,10 @@ void randomTests_withVariants_2()
 								std::vector<std::string> aa = partitionStringIntokMers(aaS_noGaps, k);
 								expected_AAs.insert(aa.begin(), aa.end());
 							}
-							assert(haplotypeStore.count(k));
+							assert(p_per_epitope.count(k));
 
 							std::set<std::string> got_AAs;
-							for(auto AAmers : haplotypeStore.at(k))
+							for(auto AAmers : p_per_epitope.at(k))
 							{
 								got_AAs.insert(AAmers.first);
 							}
@@ -688,21 +680,17 @@ void randomTests()
 
 				std::vector<transcript> transcripts = {oneTranscript};
 
-				std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
-				for(auto k : AA_mers)
-				{
-					haplotypeStore[k].count("");
-				}
-
-				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, haplotypeStore);
+				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+				std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 				for(auto k : AA_mers)
 				{
 					std::vector<std::string> expected_AAs = partitionStringIntokMers(AAsequence, k);
 					std::set<std::string> expected_AAs_set(expected_AAs.begin(), expected_AAs.end());
-					assert(haplotypeStore.count(k));
+					assert(p_per_epitope.count(k));
 					std::set<std::string> got_AAs;
-					for(auto AAmers : haplotypeStore.at(k))
+					for(auto AAmers : p_per_epitope.at(k))
 					{
 						got_AAs.insert(AAmers.first);
 					}
@@ -799,21 +787,17 @@ void randomTests()
 
 					std::vector<transcript> transcripts = {oneTranscript};
 
-					std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
-					for(auto k : AA_mers)
-					{
-						haplotypeStore[k].count("");
-					}
-
-					enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, haplotypeStore);
+					std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+					std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+					enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 					for(auto k : AA_mers)
 					{
 						std::vector<std::string> expected_AAs = partitionStringIntokMers(AAsequence, k);
 						std::set<std::string> expected_AAs_set(expected_AAs.begin(), expected_AAs.end());
-						assert(haplotypeStore.count(k));
+						assert(p_per_epitope.count(k));
 						std::set<std::string> got_AAs;
-						for(auto AAmers : haplotypeStore.at(k))
+						for(auto AAmers : p_per_epitope.at(k))
 						{
 							got_AAs.insert(AAmers.first);
 						}
@@ -821,6 +805,125 @@ void randomTests()
 						assert_AA_sets_identical(got_AAs,  expected_AAs_set);
 					}
 				}
+			}
+		}
+	}
+}
+
+void some_simple_tests()
+{
+	{
+		std::cout << "Test 1\n" << std::flush;
+
+		std::map<std::string, std::string> referenceGenome;
+		referenceGenome["chr"] = "ACGGCAGCAGCAGCAGCAGCAAAA"; // last pos: 23 AAAAAAK
+		//                        0         1         2
+		//                                  T  T
+		referenceGenome["chr"].append("NNNNNNNNNN"); // last pos: 33
+		referenceGenome["chr"].append("TCGTCGTCGTCGTCGTCGTCGTCGTCGTAA"); // last pos: 45
+
+		std::map<std::string, std::map<int, variantFromVCF>> variants;
+
+		variantFromVCF oneVariant;
+		oneVariant.chromosomeID = "chr";
+		oneVariant.position = 10;
+		oneVariant.referenceString = "C";
+		oneVariant.sampleAlleles = {"C", "T"};
+
+		variantFromVCF oneVariant_2;
+		oneVariant_2.chromosomeID = "chr";
+		oneVariant_2.position = 13;
+		oneVariant_2.referenceString = "C";
+		oneVariant_2.sampleAlleles = {"C", "T"};
+
+		variants["chr"][10] = oneVariant;
+		variants["chr"][13] = oneVariant_2;
+
+		// std::map<int, variantFromVCF>();
+
+		transcriptExon oneExon;
+		oneExon.valid = true;
+		oneExon.firstPos = 3;
+		oneExon.lastPos = oneExon.firstPos + 7 * 3 - 1; // 23
+		transcriptExon twoExon;
+		twoExon.valid = true;
+		twoExon.firstPos = 34;
+		twoExon.lastPos = 63; // 23
+
+		transcript oneTranscript;
+		oneTranscript.chromosomeID = "chr";
+		oneTranscript.geneName = "testGene";
+		oneTranscript.strand = '+';
+		oneTranscript.exons = {oneExon, twoExon};
+
+		std::vector<transcript> transcripts_plus = {oneTranscript};
+
+		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+		enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, {6}, p_per_epitope, p_per_epitope_locations);
+
+		for(auto haplotypesOneLength : p_per_epitope)
+		{
+			std::cout << "Length " << haplotypesOneLength.first << ": " << haplotypesOneLength.second.size() << "\n" << std::flush;
+			for(auto fragment : haplotypesOneLength.second)
+			{
+				const std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>& probabilites_and_positions = fragment.second;
+				double maxP = probabilites_and_positions.first;
+				std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
+			}
+		}
+	}
+
+	if(1 == 1)
+	{
+		std::cout << "Test 2\n" << std::flush;
+
+		std::map<std::string, std::string> referenceGenome;
+		referenceGenome["chr"] = "ACGGCAGCAGCAGCAGCAGCATAATTT";
+		//                        0         1         2
+		std::map<std::string, std::map<int, variantFromVCF>> variants;
+
+		variantFromVCF oneVariant;
+		oneVariant.chromosomeID = "chr";
+		oneVariant.position = 10;
+		oneVariant.referenceString = "C";
+		oneVariant.sampleAlleles = {"C", "T"};
+
+		variantFromVCF oneVariant_2;
+		oneVariant_2.chromosomeID = "chr";
+		oneVariant_2.position = 13;
+		oneVariant_2.referenceString = "C";
+		oneVariant_2.sampleAlleles = {"C", "T"};
+
+		variants["chr"][10] = oneVariant;
+		variants["chr"][13] = oneVariant_2;
+
+		// std::map<int, variantFromVCF>();
+
+		transcriptExon oneExon;
+		oneExon.valid = true;
+		oneExon.firstPos = 3;
+		oneExon.lastPos = oneExon.firstPos + 7 * 3 - 1;
+		transcript oneTranscript;
+		oneTranscript.chromosomeID = "chr";
+		oneTranscript.geneName = "testGene";
+		oneTranscript.strand = '+';
+		oneTranscript.exons = {oneExon};
+
+		std::vector<transcript> transcripts_plus = {oneTranscript};
+
+		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+		enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, {6}, p_per_epitope, p_per_epitope_locations);
+
+		for(auto haplotypesOneLength : p_per_epitope)
+		{
+			std::cout << "Length " << haplotypesOneLength.first << ": " << haplotypesOneLength.second.size() << "\n" << std::flush;
+			for(auto fragment : haplotypesOneLength.second)
+			{
+				const std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>& probabilites_and_positions = fragment.second;
+				double maxP = probabilites_and_positions.first;
+				std::cout << "\t" << fragment.first << " " << maxP << "\n" << std::flush;
 			}
 		}
 	}
