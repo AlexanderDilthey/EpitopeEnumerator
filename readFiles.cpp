@@ -14,9 +14,15 @@
 #include <exception>
 #include <set>
 
-std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF)
+std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF, const std::map<std::string, std::string>& referenceGenome)
 {
 	std::map<std::string, std::map<int, variantFromVCF>> forReturn;
+	std::map<std::string, std::vector<bool>> positionsCoveredByVariant;
+
+	for(auto r : referenceGenome)
+	{
+		positionsCoveredByVariant[r.first].resize(r.second.length(), false);
+	}
 
 	std::ifstream inputStream;
 	inputStream.open(VCF.c_str());
@@ -24,6 +30,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 	bool sawHeader = false;
 	std::string line;
 	size_t read_variants = 0;
+	size_t skipped_variants = 0;
 	while(inputStream.good())
 	{
 		std::getline(inputStream, line);
@@ -55,50 +62,84 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 				thisVariant.position = Utilities::StrtoI(line_fields.at(1)) - 1;
 				thisVariant.referenceString = line_fields.at(3);
 
-				std::vector<std::string> alternativeAlleles = Utilities::split(line_fields.at(4), ",");
-				std::map<int, std::string> number_2_allele;
-				number_2_allele[0] = thisVariant.referenceString;
-				for(unsigned int aI = 0; aI < alternativeAlleles.size(); aI++)
+				if(positionsCoveredByVariant.count(thisVariant.chromosomeID) == 0)
 				{
-					std::string allele = alternativeAlleles.at(aI);
-					number_2_allele[aI+1] = allele;
+					std::cerr << "Problem with variant: assumedly wrong reference allele. Did you generate your VCF from the specified reference genome?" << "\n";
+					std::cerr << "\t" << "VCF: " << VCF << "\n";
+					std::cerr << "\t" << "Chromosome: " << thisVariant.chromosomeID << "\n";
+					std::cerr << "\t" << "Position (0-based): " << thisVariant.position << "\n";
 				}
 
-				std::vector<std::string> thisSample_alleles_unphased = Utilities::split(line_fields.at(9), "/");
-				std::vector<std::string> thisSample_alleles_phased = Utilities::split(line_fields.at(9), "|");
-				assert(((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) || ((thisSample_alleles_unphased.size() == 1) && (thisSample_alleles_phased.size() == 2)));
-				std::vector<std::string> thisSample_alleles = ((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) ? thisSample_alleles_unphased : thisSample_alleles_phased;
-				assert(thisSample_alleles.size() == 2);
-
-				for(std::string a : thisSample_alleles)
+				unsigned int thisVariant_lastPosition = thisVariant.position + thisVariant.referenceString.length() - 1;
+				bool allReferencePositionsFree = true;
+				for(unsigned int pI = thisVariant.position; pI <= thisVariant_lastPosition; pI++)
 				{
-					int a_numeric = Utilities::StrtoI(a);
-					assert(number_2_allele.count(a_numeric));
-					thisVariant.sampleAlleles.push_back(number_2_allele.at(a_numeric));
+					if(positionsCoveredByVariant.at(thisVariant.chromosomeID).at(pI))
+					{
+						allReferencePositionsFree = false;
+					}
 				}
+				//
 
-				unsigned int maxLength = thisVariant.referenceString.length();
-				for(auto a : thisVariant.sampleAlleles)
+				if(allReferencePositionsFree)
 				{
-					if(maxLength < a.length())
-						maxLength = a.length();
-				}
+					std::vector<std::string> alternativeAlleles = Utilities::split(line_fields.at(4), ",");
+					std::map<int, std::string> number_2_allele;
+					number_2_allele[0] = thisVariant.referenceString;
+					for(unsigned int aI = 0; aI < alternativeAlleles.size(); aI++)
+					{
+						std::string allele = alternativeAlleles.at(aI);
+						number_2_allele[aI+1] = allele;
+					}
 
-				extendAsNecessary(thisVariant.referenceString, maxLength);
-				for(std::string& a : thisVariant.sampleAlleles)
-				{
-					extendAsNecessary(a, maxLength);
+					std::vector<std::string> thisSample_alleles_unphased = Utilities::split(line_fields.at(9), "/");
+					std::vector<std::string> thisSample_alleles_phased = Utilities::split(line_fields.at(9), "|");
+					assert(((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) || ((thisSample_alleles_unphased.size() == 1) && (thisSample_alleles_phased.size() == 2)));
+					std::vector<std::string> thisSample_alleles = ((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) ? thisSample_alleles_unphased : thisSample_alleles_phased;
+					assert(thisSample_alleles.size() == 2);
+
+					for(std::string a : thisSample_alleles)
+					{
+						int a_numeric = Utilities::StrtoI(a);
+						assert(number_2_allele.count(a_numeric));
+						thisVariant.sampleAlleles.push_back(number_2_allele.at(a_numeric));
+					}
+
+					unsigned int maxLength = thisVariant.referenceString.length();
+					for(auto a : thisVariant.sampleAlleles)
+					{
+						if(maxLength < a.length())
+							maxLength = a.length();
+					}
+
+					extendAsNecessary(thisVariant.referenceString, maxLength);
+					for(std::string& a : thisVariant.sampleAlleles)
+					{
+						extendAsNecessary(a, maxLength);
+					}
+					assert(forReturn[thisVariant.chromosomeID].count(thisVariant.position) == 0);
+					assert(thisVariant.sampleAlleles.size() == 2);
+					forReturn[thisVariant.chromosomeID][thisVariant.position] = thisVariant;
+
+					for(unsigned int pI = thisVariant.position; pI <= thisVariant_lastPosition; pI++)
+					{
+						positionsCoveredByVariant.at(thisVariant.chromosomeID).at(pI) = true;
+					}
 				}
-				assert(forReturn[thisVariant.chromosomeID].count(thisVariant.position) == 0);
-				assert(thisVariant.sampleAlleles.size() == 2);
-				forReturn[thisVariant.chromosomeID][thisVariant.position] = thisVariant;
+				else
+				{
+					skipped_variants++;
+					std::cerr << "Warning: variant " << thisVariant.chromosomeID << ":" << thisVariant.position << " was ignored because it overlapped with other variants in the same VCF.\n" << std::flush;
+				}
 				read_variants++;
+
 			}
 		}
 	}
 
-	std::cout << "readVariants(..): Have " << read_variants << " variants.\n" << std::flush;
+	std::cout << "readVariants(..): Have " << read_variants << " variants; of which " << skipped_variants << " were skipped because they overlapped with existing variants.\n" << std::flush;
 
+	checkVariantsConsistentWithReferenceGenome(forReturn, referenceGenome);
 	return forReturn;
 }
 
@@ -311,9 +352,10 @@ unsigned int countCharacters_noGaps(const std::string& S)
 }
 
 std::map<std::string, std::string> codon2AA;
-std::string translateCodon2AA(const std::string& codon)
+std::map<std::string, std::set<std::string>> AA2codon;
+
+void fillTranslationTables()
 {
-	assert(codon.length() == 3);
 	if(codon2AA.size() == 0)
 	{
 		codon2AA["CCT"] = "P";
@@ -380,7 +422,54 @@ std::string translateCodon2AA(const std::string& codon)
 		codon2AA["ACC"] = "T";
 		codon2AA["TAA"] = "!";
 		codon2AA["TCT"] = "S";
+
+		for(auto c2A : codon2AA)
+		{
+			AA2codon[c2A.second].insert(c2A.first);
+		}
 	}
+}
+std::set<std::string> translateAA2Codon(const std::string& AA)
+{
+	fillTranslationTables();
+
+	if(AA2codon.count(AA) == 0)
+	{
+		throw std::runtime_error("AA "+AA+" undefined.");
+	}
+
+	return AA2codon.at(AA);
+}
+
+std::string translateAASequence2Codons(const std::string& AAs)
+{
+	std::string forReturn;
+	forReturn.reserve(AAs.size() * 3);
+	for(unsigned int AAi = 0; AAi < AAs.size(); AAi++)
+	{
+		std::string AA = AAs.substr(AAi, 1);
+		std::set<std::string> codons = translateAA2Codon(AA);
+		if(codons.size() > 1)
+		{
+			std::vector<std::string> codons_vec(codons.begin(), codons.end());
+			int n = rand() % codons_vec.size();
+			assert((n >= 0) && (n < (int)codons_vec.size()));
+			forReturn.append(codons_vec.at(n));
+		}
+		else
+		{
+			std::string codon = *(codons.begin());
+			forReturn.append(codon);
+		}
+	}
+
+	return forReturn;
+}
+
+std::string translateCodon2AA(const std::string& codon)
+{
+	fillTranslationTables();
+	assert(codon.length() == 3);
 
 	if(codon2AA.count(codon) == 0)
 	{
@@ -400,7 +489,6 @@ void extendAsNecessary(std::string& S, unsigned int desiredLength)
 		append.resize(missing, '-');
 		S.append(append);
 	}
-
 }
 
 
@@ -431,7 +519,7 @@ std::vector<transcript> getMinusStrandTranscripts(const std::vector<transcript>&
 			transcript t_minus;
 			t_minus.chromosomeID = t.chromosomeID;
 			t_minus.geneName = t.geneName;
-			t_minus.strand = '-';
+			t_minus.strand = '+';
 			t_minus.exons.resize(t.exons.size());
 
 			size_t referenceContigLength = referenceGenome_minus.at(t.chromosomeID).length();
@@ -451,8 +539,12 @@ std::vector<transcript> getMinusStrandTranscripts(const std::vector<transcript>&
 
 					t_minus.exons.at(exonI).valid = true;
 
-					long long minus_firstPos = referenceContigLength - t_minus.exons.at(exonI).firstPos - 1;
-					long long minus_lastPos = referenceContigLength - t_minus.exons.at(exonI).lastPos - 1;
+					long long minus_firstPos = referenceContigLength - t.exons.at(exonI).firstPos - 1;
+					long long minus_lastPos = referenceContigLength - t.exons.at(exonI).lastPos - 1;
+					if(!(minus_firstPos >= minus_lastPos))
+					{
+						t.print();
+					}
 					assert(minus_firstPos >= minus_lastPos);
 					long long third = minus_firstPos;
 					minus_firstPos = minus_lastPos;
@@ -483,14 +575,14 @@ std::map<std::string, std::map<int, variantFromVCF>> getMinusStrandVariants(cons
 			const variantFromVCF& existingVariant = positionAndVariant.second;
 
 			size_t referenceContigLength = referenceGenome_minus.at(existingVariant.chromosomeID).length();
-			unsigned int existingVariant_lastVariantPosition = existingVariant.position + existingVariant.referenceString.length() - 1;
+			unsigned int existingVariant_lastVariantPosition = existingVariant.position + countCharacters_noGaps(existingVariant.referenceString) - 1;
 			assert(existingVariant_lastVariantPosition < referenceContigLength);
 
 			variantFromVCF minusVariant;
 			minusVariant.chromosomeID = existingVariant.chromosomeID;
 			minusVariant.position = referenceContigLength - existingVariant_lastVariantPosition - 1;
 			minusVariant.referenceString = seq_reverse_complement(existingVariant.referenceString);
-			assert(referenceGenome_minus.at(minusVariant.chromosomeID).substr(minusVariant.position, minusVariant.referenceString.length()) == minusVariant.referenceString);
+			assert(referenceGenome_minus.at(minusVariant.chromosomeID).substr(minusVariant.position, countCharacters_noGaps(minusVariant.referenceString)) == removeGaps(minusVariant.referenceString));
 			for(auto sA : existingVariant.sampleAlleles)
 			{
 				minusVariant.sampleAlleles.push_back(seq_reverse_complement(sA));
@@ -550,6 +642,8 @@ char reverse_char_nucleotide(char c)
 			return 'n';
 		case '_':
 			return '_';
+		case '-':
+			return '-';
 		case '*':
 			return '*';
 		default:
@@ -568,11 +662,215 @@ void checkVariantsConsistentWithReferenceGenome(const std::map<std::string, std:
 			const variantFromVCF& variant = positionAndVariant.second;
 			assert(variant.chromosomeID == chromosomeData.first);
 			assert((int)variant.position == positionAndVariant.first);
-			assert(variant.referenceString == referenceGenome.at(variant.chromosomeID).substr(variant.position, variant.referenceString.length()));
 			for(auto sA : variant.sampleAlleles)
 			{
 				assert(sA.length() == variant.referenceString.length());
 			}
+
+			std::string supposedReferenceString = referenceGenome.at(variant.chromosomeID).substr(variant.position, countCharacters_noGaps(variant.referenceString));
+			std::string variant_referenceString_noGaps = removeGaps(variant.referenceString);
+			if(supposedReferenceString != variant_referenceString_noGaps)
+			{
+				std::cerr << "Problem with variant: assumedly wrong reference allele. Did you generate your VCF from the specified reference genome?" << "\n";
+				std::cerr << "\t" << "Chromosome: " << variant.chromosomeID << "\n";
+				std::cerr << "\t" << "Position (0-based): " << variant.position << "\n";
+				std::cerr << "\t" << "Variant reference string" << ": " << variant.referenceString << "\n";
+				std::cerr << "\t" << "Variant reference string, no gaps" << ": " << variant_referenceString_noGaps << "\n";
+				std::cerr << "\t" << "Expected reference string" << ": " << supposedReferenceString << "\n";
+				std::cerr << std::flush;
+			}
+			assert(variant_referenceString_noGaps == supposedReferenceString);
+
 		}
 	}
 }
+
+std::map<std::string, std::map<int, variantFromVCF>> combineVariants(const std::map<std::string, std::map<int, variantFromVCF>>& variants_normalGenome, const std::map<std::string, std::map<int, variantFromVCF>>& additionalVariants_tumourGenome, const std::map<std::string, std::string>& referenceGenome)
+{
+	std::map<std::string, std::map<int, variantFromVCF>> forReturn;
+
+	checkVariantsConsistentWithReferenceGenome(variants_normalGenome, referenceGenome);
+	checkVariantsConsistentWithReferenceGenome(additionalVariants_tumourGenome, referenceGenome);
+
+	std::map<std::string, std::vector<bool>> positionsCoveredByVariant;
+	for(auto r : referenceGenome)
+	{
+		positionsCoveredByVariant[r.first].resize(r.second.length(), false);
+	}
+
+	for(auto variantsPerChromosome : additionalVariants_tumourGenome)
+	{
+		std::string chromosomeID = variantsPerChromosome.first;
+		assert(positionsCoveredByVariant.count(chromosomeID));
+		for(auto positionAndVariant : variantsPerChromosome.second)
+		{
+			const variantFromVCF& tumourVariant = positionAndVariant.second;
+			unsigned int lastPosition = tumourVariant.position + countCharacters_noGaps(tumourVariant.referenceString) - 1;
+
+			forReturn[tumourVariant.chromosomeID][tumourVariant.position] = tumourVariant;
+			for(unsigned int pI = tumourVariant.position; pI <= lastPosition; pI++)
+			{
+				positionsCoveredByVariant.at(tumourVariant.chromosomeID).at(pI) = true;
+			}
+		}
+	}
+
+	for(auto variantsPerChromosome : variants_normalGenome)
+	{
+		std::string chromosomeID = variantsPerChromosome.first;
+		assert(positionsCoveredByVariant.count(chromosomeID));
+		for(auto positionAndVariant : variantsPerChromosome.second)
+		{
+			const variantFromVCF& normalGenomeVariant = positionAndVariant.second;
+			unsigned int lastPosition = normalGenomeVariant.position + countCharacters_noGaps(normalGenomeVariant.referenceString) - 1;
+
+			bool noExistingVariantCover = true;
+
+			for(unsigned int pI = normalGenomeVariant.position; pI <= lastPosition; pI++)
+			{
+				if(positionsCoveredByVariant.at(normalGenomeVariant.chromosomeID).at(pI))
+				{
+					noExistingVariantCover = false;
+				}
+			}
+
+			if(noExistingVariantCover)
+			{
+				forReturn[normalGenomeVariant.chromosomeID][normalGenomeVariant.position] = normalGenomeVariant;
+				for(unsigned int pI = normalGenomeVariant.position; pI <= lastPosition; pI++)
+				{
+					positionsCoveredByVariant.at(normalGenomeVariant.chromosomeID).at(pI) = true;
+				}
+			}
+		}
+	}
+
+
+
+	return forReturn;
+
+}
+
+std::string removeGaps(const std::string& in)
+{
+	std::string out;
+	out.reserve(in.size());
+	for(size_t i = 0; i < in.size(); i++)
+	{
+		if((in.at(i) != '_') && (in.at(i) != '-'))
+		{
+			out.push_back(in.at(i));
+		}
+	}
+	return out;
+}
+
+void transcript::print() const
+{
+	std::cout << "Transcript " << transcriptID << " / " << geneName << "\n";
+	std::cout << "==================================================================\n";
+	std::cout << "Chromosome: " << chromosomeID << "\n";
+	std::cout << "Strand: " << strand << "\n";
+	std::cout << "Exons:\n";
+	for(transcriptExon e : exons)
+	{
+		std::cout << "\t" << e.firstPos << " " << e.lastPos << "\n";
+	}
+	std::cout << "\n" << std::flush;
+}
+
+void checkTranscriptsTranslate(const std::vector<transcript>& transcripts, const std::map<std::string, std::string>& referenceGenome)
+{
+	for(const transcript& t : transcripts)
+	{
+		assert(t.strand == '+');
+		std::string t_referenceSequence;
+		for(const transcriptExon& e : t.exons)
+		{
+			if(e.valid)
+			{
+				if(referenceGenome.count(t.chromosomeID) == 0)
+				{
+					std::cerr << "Unknown chromosome ID: "+t.chromosomeID << "\n" << std::flush;
+					throw std::runtime_error("Unknown chromosome ID: "+t.chromosomeID);
+				}
+				const std::string& chromosomeSequence = referenceGenome.at(t.chromosomeID);
+				assert(e.firstPos <= e.lastPos);
+				assert(e.firstPos >= 0);
+				assert(e.lastPos < chromosomeSequence.length());
+
+				t_referenceSequence += referenceGenome.at(t.chromosomeID).substr(e.firstPos, e.lastPos - e.firstPos + 1);
+			}
+		}
+		std::string translation;
+		assert((t_referenceSequence.length() % 3) == 0);
+		for(unsigned int i = 0; i < t_referenceSequence.length(); i += 3)
+		{
+			std::string codon = t_referenceSequence.substr(i, 3);
+			assert(codon.length() == 3);
+			translation += translateCodon2AA(codon);
+		}
+		if(translation.back() != '!')
+		{
+			// std::cout << t.transcriptID << " " << translation << "\n" << std::flush;
+		}
+		// assert(translation.back() == '!');
+	}
+}
+
+char randomNucleotide()
+{
+	char nucleotides[4] = {'A', 'C', 'G', 'T'};
+	int n = rand() % 4;
+	assert((n >= 0) && (n <= 3));
+	return nucleotides[n];
+}
+
+std::vector<std::string> AAs_for_randomAA;
+std::string randomAA()
+{
+	if(AAs_for_randomAA.size() == 0)
+	{
+		fillTranslationTables();
+		for(auto AA : AA2codon)
+		{
+			if(AA.first != "!")
+				AAs_for_randomAA.push_back(AA.first);
+		}
+	}
+
+	int n = rand() % AAs_for_randomAA.size();
+	assert((n >= 0) && (n < (int)AAs_for_randomAA.size()));
+	return AAs_for_randomAA.at(n);
+}
+
+std::string generateRandomAASequence(int length)
+{
+	std::string forReturn;
+	forReturn.reserve(length);
+	for(int i = 0; i < length; i++)
+	{
+		forReturn.append(randomAA());
+	}
+	assert(forReturn.length() == length);
+	return forReturn;
+}
+
+
+std::vector<std::string> partitionStringIntokMers(const std::string& str, int k)
+{
+	std::vector<std::string> forReturn;
+	if((int)str.length() >= k)
+	{
+		forReturn.reserve(str.length() - k + 1);
+		for(int i = 0; i <= (str.length() - k); i++)
+		{
+			std::string kMer = str.substr(i, k);
+			assert((int)kMer.length() == k);
+			forReturn.push_back(kMer);
+		}
+	}
+	return forReturn;
+}
+
+
