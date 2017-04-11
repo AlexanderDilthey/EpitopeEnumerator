@@ -132,7 +132,7 @@ void randomTests_withVariants()
 
 				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 				std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, AA_mers, p_per_epitope, p_per_epitope_locations);
+				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 				for(auto k : AA_mers)
 				{
@@ -157,6 +157,8 @@ void randomTests_withVariants()
 						assert(got_AAs.count(expectedAA));
 					}
 				}
+
+				compare_proper_improper_peptides(referenceGenome, transcripts, variants, AA_mers);
 			}
 
 			/*
@@ -506,7 +508,7 @@ void randomTests_withVariants_2()
 
 						std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 						std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-						enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, AA_mers, p_per_epitope, p_per_epitope_locations);
+						enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 						for(auto k : AA_mers)
 						{
@@ -527,6 +529,8 @@ void randomTests_withVariants_2()
 
 							assert_AA_sets_identical(got_AAs,  expected_AAs);
 						}
+
+						compare_proper_improper_peptides(referenceGenome, transcripts, variants, AA_mers);
 					}
 				}
 
@@ -684,7 +688,7 @@ void randomTests()
 
 				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 				std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, AA_mers, p_per_epitope, p_per_epitope_locations);
+				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 				for(auto k : AA_mers)
 				{
@@ -791,7 +795,8 @@ void randomTests()
 
 					std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 					std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-					enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, true, AA_mers, p_per_epitope, p_per_epitope_locations);
+					enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+					compare_proper_improper_peptides(referenceGenome, transcripts, variants, AA_mers);
 
 					for(auto k : AA_mers)
 					{
@@ -867,7 +872,8 @@ void some_simple_tests()
 		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
 
-		enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, {6}, p_per_epitope, p_per_epitope_locations);
+		//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope, p_per_epitope_locations);
+		enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope);
 
 		for(auto haplotypesOneLength : p_per_epitope)
 		{
@@ -890,6 +896,8 @@ void some_simple_tests()
 				}
 			}
 		}
+
+		compare_proper_improper_peptides(referenceGenome, transcripts_plus, variants, {6});
 	}
 
 	if(1 == 1)
@@ -931,11 +939,11 @@ void some_simple_tests()
 		oneTranscript.exons = {oneExon};
 
 		std::vector<transcript> transcripts_plus = {oneTranscript};
-
 		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
 
-		enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, true, {6}, p_per_epitope, p_per_epitope_locations);
+
+		enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope);
 
 		for(auto haplotypesOneLength : p_per_epitope)
 		{
@@ -958,7 +966,55 @@ void some_simple_tests()
 				}
 			}
 		}
+
+		compare_proper_improper_peptides(referenceGenome, transcripts_plus, variants, {6});
+
+		//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope, p_per_epitope_locations);
+
 	}
+}
+
+void compare_proper_improper_peptides(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths)
+{
+	std::map<int, std::set<std::string>> peptides_proper;
+	std::map<int, std::set<std::string>> peptides_improper;
+
+	{
+		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+		enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope);
+
+		for(auto haplotypesOneLength : p_per_epitope)
+		{
+			for(auto fragment : haplotypesOneLength.second)
+			{
+				peptides_improper[haplotypesOneLength.first].insert(fragment.first);
+			}
+		}
+	}
+
+	{
+		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+
+		enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations);
+
+		for(auto haplotypesOneLength : p_per_epitope)
+		{
+			for(auto fragment : haplotypesOneLength.second)
+			{
+				peptides_proper[haplotypesOneLength.first].insert(fragment.first);
+			}
+		}
+	}
+
+	assert(peptides_proper.size() == peptides_improper.size());
+	for(auto l_and_sets : peptides_proper)
+	{
+		assert_AA_sets_identical(peptides_proper.at(l_and_sets.first), peptides_proper.at(l_and_sets.first));
+	}
+
+
+	//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope, p_per_epitope_locations);
 }
 
 void assert_AA_sets_identical(const std::set<std::string>& s1, const std::set<std::string>& s2)

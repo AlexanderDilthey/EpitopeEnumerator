@@ -24,4 +24,6 @@ unsigned int randomNumber(unsigned int max_inclusive);
 std::string generateRandomNucleotideSequence(int length);
 double randomDouble();
 
+void compare_proper_improper_peptides(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths);
+
 #endif /* TESTS_H_ */
