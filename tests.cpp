@@ -846,7 +846,7 @@ void some_simple_tests()
 		oneVariant_2.sampleAlleles_interesting = {false, true};
 
 		variants["chr"][10] = oneVariant;
-		variants["chr"][13] = oneVariant_2;
+		//variants["chr"][13] = oneVariant_2;
 
 		// std::map<int, variantFromVCF>();
 
@@ -870,9 +870,7 @@ void some_simple_tests()
 		checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
 
 		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
-		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
 
-		//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope, p_per_epitope_locations);
 		enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope);
 
 		for(auto haplotypesOneLength : p_per_epitope)
@@ -898,6 +896,9 @@ void some_simple_tests()
 		}
 
 		compare_proper_improper_peptides(referenceGenome, transcripts_plus, variants, {6});
+
+		//std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+		//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope, p_per_epitope_locations);
 	}
 
 	if(1 == 1)
@@ -940,7 +941,7 @@ void some_simple_tests()
 
 		std::vector<transcript> transcripts_plus = {oneTranscript};
 		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
-		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+
 
 
 		enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope);
@@ -969,6 +970,7 @@ void some_simple_tests()
 
 		compare_proper_improper_peptides(referenceGenome, transcripts_plus, variants, {6});
 
+		//std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
 		//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope, p_per_epitope_locations);
 
 	}

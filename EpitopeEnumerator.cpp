@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
 	std::vector<std::string> ARG (argv + 1, argv + argc + !argc);
 	std::map<std::string, std::string> arguments;
 
-	int testing = 2;
+	int testing = 1;
 	if(testing == 1)
 	{
 		some_simple_tests();
@@ -94,6 +94,7 @@ int main(int argc, char *argv[]) {
 		assert("minus-strand transcripts!" == "");
 		assert("add stop codons!" == "");
 		assert("add filter for PASS" == "");
+		assert("write tests for stop codons" = "!");
 	}
 
 	return 0;
