@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <exception>
 #include <set>
+#include "Util.h"
 
 std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF, const std::map<std::string, std::string>& referenceGenome)
 {
@@ -34,7 +35,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 	while(inputStream.good())
 	{
 		std::getline(inputStream, line);
-		Utilities::eraseNL(line);
+		eraseNL(line);
 		if(line.length())
 		{
 			if((line.length() >= 2) && (line.substr(0, 2) == "##"))
@@ -42,7 +43,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 				continue;
 			}
 
-			std::vector<std::string> line_fields = Utilities::split(line, "\t");
+			std::vector<std::string> line_fields = split(line, "\t");
 
 			if(line.substr(0, 1) == "#")
 			{
@@ -59,7 +60,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 
 				variantFromVCF thisVariant;
 				thisVariant.chromosomeID = line_fields.at(0);
-				thisVariant.position = Utilities::StrtoI(line_fields.at(1)) - 1;
+				thisVariant.position = StrtoI(line_fields.at(1)) - 1;
 				thisVariant.referenceString = line_fields.at(3);
 
 				if(positionsCoveredByVariant.count(thisVariant.chromosomeID) == 0)
@@ -83,7 +84,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 
 				if(allReferencePositionsFree)
 				{
-					std::vector<std::string> alternativeAlleles = Utilities::split(line_fields.at(4), ",");
+					std::vector<std::string> alternativeAlleles = split(line_fields.at(4), ",");
 					std::map<int, std::string> number_2_allele;
 					number_2_allele[0] = thisVariant.referenceString;
 					for(unsigned int aI = 0; aI < alternativeAlleles.size(); aI++)
@@ -92,15 +93,15 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 						number_2_allele[aI+1] = allele;
 					}
 
-					std::vector<std::string> thisSample_alleles_unphased = Utilities::split(line_fields.at(9), "/");
-					std::vector<std::string> thisSample_alleles_phased = Utilities::split(line_fields.at(9), "|");
+					std::vector<std::string> thisSample_alleles_unphased = split(line_fields.at(9), "/");
+					std::vector<std::string> thisSample_alleles_phased = split(line_fields.at(9), "|");
 					assert(((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) || ((thisSample_alleles_unphased.size() == 1) && (thisSample_alleles_phased.size() == 2)));
 					std::vector<std::string> thisSample_alleles = ((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) ? thisSample_alleles_unphased : thisSample_alleles_phased;
 					assert(thisSample_alleles.size() == 2);
 
 					for(std::string a : thisSample_alleles)
 					{
-						int a_numeric = Utilities::StrtoI(a);
+						int a_numeric = StrtoI(a);
 						assert(number_2_allele.count(a_numeric));
 						thisVariant.sampleAlleles.push_back(number_2_allele.at(a_numeric));
 					}
@@ -162,26 +163,26 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 		lineI++;
 
 		std::getline(inputStream, line);
-		Utilities::eraseNL(line);
+		eraseNL(line);
 		if(line.length())
 		{
-			std::vector<std::string> line_fields = Utilities::split(line, "\t");
+			std::vector<std::string> line_fields = split(line, "\t");
 			if(line_fields.at(0) != "chr20") // todo remove
 				continue;
 
 			if(line_fields.at(2) != "CDS")
 				continue;
 
-			int startPos = Utilities::StrtoI(line_fields.at(3)) - 1;
-			int stopPos = Utilities::StrtoI(line_fields.at(4)) - 1;
+			int startPos = StrtoI(line_fields.at(3)) - 1;
+			int stopPos = StrtoI(line_fields.at(4)) - 1;
 			assert(startPos <= stopPos);
 
 			std::string dataFields_string = line_fields.at(8);
-			std::vector<std::string> dataFields_vector = Utilities::split(dataFields_string, ";");
+			std::vector<std::string> dataFields_vector = split(dataFields_string, ";");
 			std::map<std::string, std::string> dataFields;
 			for(std::string oneDataField : dataFields_vector)
 			{
-				std::vector<std::string> thisDataField_vector = Utilities::split(oneDataField, "=");
+				std::vector<std::string> thisDataField_vector = split(oneDataField, "=");
 				assert(thisDataField_vector.size() == 2);
 				dataFields[thisDataField_vector.at(0)] = thisDataField_vector.at(1);
 			}
@@ -238,7 +239,7 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 			}
 
 			assert(dataFields.count("exon_number"));
-			int exonI = Utilities::StrtoI(dataFields.at("exon_number"));
+			int exonI = StrtoI(dataFields.at("exon_number"));
 
 			assert(exons_per_transcript[ID].count(exonI) == 0);
 			transcriptExon exon;
@@ -259,7 +260,7 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 		std::string transcriptID = transcript_and_id.first;
 		transcript transcriptCopy = transcript_and_id.second;
 		assert(exons_per_transcript.count(transcriptID));
-		unsigned int maxCollectedExon = 0;
+		int maxCollectedExon = 0;
 		for(auto eI : exons_per_transcript.at(transcriptID))
 		{
 			if(eI.first > maxCollectedExon)
@@ -268,7 +269,7 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 		transcriptCopy.exons.resize(maxCollectedExon);
 		bool allExonsOK = true;
 		size_t allExons_length = 0;
-		for(unsigned int i = 1; i <= maxCollectedExon; i++)
+		for(int i = 1; i <= maxCollectedExon; i++)
 		{
 			/*
 			if(!exons_per_transcript.at(transcriptID).count(i))
@@ -338,146 +339,6 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 	std::cout << "readTranscripts(..): Have " << forReturn.size() << " transcripts with " << read_exons << " exons; ignored because of missing exons " << ignored_missingExons << "; ignored because length not multiple of 3: " << ignored_non3Dividable << "; ignored because of other criteria: " << ignored_transcriptIDs.size() << ".\n" << std::flush;
 
 	return forReturn;
-}
-
-unsigned int countCharacters_noGaps(const std::string& S)
-{
-	unsigned int forReturn = 0;
-	for(unsigned int i = 0; i < S.length(); i++)
-	{
-		unsigned char c = S.at(i);
-		if((c != '-') && (c != '_'))
-			forReturn++;
-	}
-	return forReturn;
-}
-
-std::map<std::string, std::string> codon2AA;
-std::map<std::string, std::set<std::string>> AA2codon;
-
-void fillTranslationTables()
-{
-	if(codon2AA.size() == 0)
-	{
-		codon2AA["CCT"] = "P";
-		codon2AA["CAC"] = "H";
-		codon2AA["CTG"] = "L";
-		codon2AA["CAG"] = "Q";
-		codon2AA["GGA"] = "G";
-		codon2AA["CGG"] = "R";
-		codon2AA["TAT"] = "Y";
-		codon2AA["GAT"] = "D";
-		codon2AA["ATT"] = "I";
-		codon2AA["AAC"] = "N";
-		codon2AA["CCG"] = "P";
-		codon2AA["TCC"] = "S";
-		codon2AA["CGA"] = "R";
-		codon2AA["GTG"] = "V";
-		codon2AA["GTC"] = "V";
-		codon2AA["CTA"] = "L";
-		codon2AA["AAG"] = "K";
-		codon2AA["CGT"] = "R";
-		codon2AA["TTA"] = "L";
-		codon2AA["AAT"] = "N";
-		codon2AA["ACA"] = "T";
-		codon2AA["GGT"] = "G";
-		codon2AA["GGC"] = "G";
-		codon2AA["GCC"] = "A";
-		codon2AA["GCA"] = "A";
-		codon2AA["GAG"] = "E";
-		codon2AA["CAT"] = "H";
-		codon2AA["TGT"] = "C";
-		codon2AA["ATG"] = "M";
-		codon2AA["ATC"] = "I";
-		codon2AA["TTC"] = "F";
-		codon2AA["TTT"] = "F";
-		codon2AA["CAA"] = "Q";
-		codon2AA["AGC"] = "S";
-		codon2AA["TGG"] = "W";
-		codon2AA["GCT"] = "A";
-		codon2AA["GAC"] = "D";
-		codon2AA["CGC"] = "R";
-		codon2AA["CCC"] = "P";
-		codon2AA["TTG"] = "L";
-		codon2AA["ACT"] = "T";
-		codon2AA["ATA"] = "I";
-		codon2AA["AGA"] = "R";
-		codon2AA["AGT"] = "S";
-		codon2AA["CTT"] = "L";
-		codon2AA["GCG"] = "A";
-		codon2AA["AGG"] = "R";
-		codon2AA["AAA"] = "K";
-		codon2AA["ACG"] = "T";
-		codon2AA["TGA"] = "!";
-		codon2AA["CCA"] = "P";
-		codon2AA["GTT"] = "V";
-		codon2AA["GGG"] = "G";
-		codon2AA["TCG"] = "S";
-		codon2AA["GTA"] = "V";
-		codon2AA["TCA"] = "S";
-		codon2AA["CTC"] = "L";
-		codon2AA["TGC"] = "C";
-		codon2AA["TAC"] = "Y";
-		codon2AA["GAA"] = "E";
-		codon2AA["TAG"] = "!";
-		codon2AA["ACC"] = "T";
-		codon2AA["TAA"] = "!";
-		codon2AA["TCT"] = "S";
-
-		for(auto c2A : codon2AA)
-		{
-			AA2codon[c2A.second].insert(c2A.first);
-		}
-	}
-}
-std::set<std::string> translateAA2Codon(const std::string& AA)
-{
-	fillTranslationTables();
-
-	if(AA2codon.count(AA) == 0)
-	{
-		throw std::runtime_error("AA "+AA+" undefined.");
-	}
-
-	return AA2codon.at(AA);
-}
-
-std::string translateAASequence2Codons(const std::string& AAs)
-{
-	std::string forReturn;
-	forReturn.reserve(AAs.size() * 3);
-	for(unsigned int AAi = 0; AAi < AAs.size(); AAi++)
-	{
-		std::string AA = AAs.substr(AAi, 1);
-		std::set<std::string> codons = translateAA2Codon(AA);
-		if(codons.size() > 1)
-		{
-			std::vector<std::string> codons_vec(codons.begin(), codons.end());
-			int n = rand() % codons_vec.size();
-			assert((n >= 0) && (n < (int)codons_vec.size()));
-			forReturn.append(codons_vec.at(n));
-		}
-		else
-		{
-			std::string codon = *(codons.begin());
-			forReturn.append(codon);
-		}
-	}
-
-	return forReturn;
-}
-
-std::string translateCodon2AA(const std::string& codon)
-{
-	fillTranslationTables();
-	assert(codon.length() == 3);
-
-	if(codon2AA.count(codon) == 0)
-	{
-		throw std::runtime_error("Codon "+codon+" undefined.");
-	}
-
-	return codon2AA.at(codon);
 }
 
 void extendAsNecessary(std::string& S, unsigned int desiredLength)
@@ -604,55 +465,6 @@ std::map<std::string, std::string> getMinusStrandReferenceGenome(const std::map<
 		forReturn[referenceGenomeEntry.first] = seq_reverse_complement(referenceGenomeEntry.second);
 	}
 	return forReturn;
-}
-
-std::string seq_reverse_complement(const std::string& sequence)
-{
-	int length = sequence.size();
-	std::string forReturn;
-	forReturn.resize(length);
-    for(int k=0; k < length; k++)
-    {
-        forReturn[k] = reverse_char_nucleotide(sequence.at(length-k-1));
-    }
-    return forReturn;
-}
-
-char reverse_char_nucleotide(char c)
-{
-    switch (c)
-    {
-		case 'A':
-			return 'T';
-		case 'C':
-			return 'G';
-		case 'G':
-			return 'C';
-		case 'T':
-			return 'A';
-		case 'N':
-			return 'N';
-		case 'a':
-			return 't';
-		case 'c':
-			return 'g';
-		case 'g':
-			return 'c';
-		case 't':
-			return 'a';
-		case 'n':
-			return 'n';
-		case '_':
-			return '_';
-		case '-':
-			return '-';
-		case '*':
-			return '*';
-		default:
-			std::string errorString = "Utilities::reverse_char_nucleotide: nucleotide not existing!";
-			errorString.push_back(c);
-			throw std::runtime_error(errorString);
-    }
 }
 
 void checkVariantsConsistentWithReferenceGenome(const std::map<std::string, std::map<int, variantFromVCF>>& variants, const std::map<std::string, std::string>& referenceGenome)
@@ -786,19 +598,6 @@ std::map<std::string, std::map<int, variantFromVCF>> combineVariants(const std::
 
 }
 
-std::string removeGaps(const std::string& in)
-{
-	std::string out;
-	out.reserve(in.size());
-	for(size_t i = 0; i < in.size(); i++)
-	{
-		if((in.at(i) != '_') && (in.at(i) != '-'))
-		{
-			out.push_back(in.at(i));
-		}
-	}
-	return out;
-}
 
 void transcript::print() const
 {
@@ -851,64 +650,6 @@ void checkTranscriptsTranslate(const std::vector<transcript>& transcripts, const
 		}
 		// assert(translation.back() == '!');
 	}
-}
-
-char randomNucleotide()
-{
-	char nucleotides[4] = {'A', 'C', 'G', 'T'};
-	int n = rand() % 4;
-	assert((n >= 0) && (n <= 3));
-	return nucleotides[n];
-}
-
-std::vector<std::string> AAs_for_randomAA;
-std::string randomAA()
-{
-	if(AAs_for_randomAA.size() == 0)
-	{
-		fillTranslationTables();
-		for(auto AA : AA2codon)
-		{
-			if(AA.first != "!")
-				AAs_for_randomAA.push_back(AA.first);
-		}
-	}
-
-	int n = rand() % AAs_for_randomAA.size();
-	assert((n >= 0) && (n < (int)AAs_for_randomAA.size()));
-	return AAs_for_randomAA.at(n);
-}
-
-std::string generateRandomAASequence(int length)
-{
-	std::string forReturn;
-	forReturn.reserve(length);
-	for(int i = 0; i < length; i++)
-	{
-		forReturn.append(randomAA());
-	}
-	assert(forReturn.length() == length);
-	return forReturn;
-}
-
-
-
-
-
-std::vector<std::string> partitionStringIntokMers(const std::string& str, int k)
-{
-	std::vector<std::string> forReturn;
-	if((int)str.length() >= k)
-	{
-		forReturn.reserve(str.length() - k + 1);
-		for(int i = 0; i <= (str.length() - k); i++)
-		{
-			std::string kMer = str.substr(i, k);
-			assert((int)kMer.length() == k);
-			forReturn.push_back(kMer);
-		}
-	}
-	return forReturn;
 }
 
 

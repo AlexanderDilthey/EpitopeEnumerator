@@ -7,6 +7,13 @@
 
 #include "tests.h"
 
+#include <iostream>
+#include <assert.h>
+
+#include "enumerateEpitopes_haplotypePairs.h"
+#include "enumerateEpitopes_noHaplotypePairs.h"
+#include "Util.h"
+
 void randomTests_withVariants()
 {
 	// this function generates a range of modified AA haplotypes and
@@ -25,7 +32,7 @@ void randomTests_withVariants()
 
 		std::string nucleotideSequnce = translateAASequence2Codons(AAsequence);
 
-		std::map<int, unsigned char> have_variant_at_position;
+		std::map<int, char> have_variant_at_position;
 		int substituted_codons = 0;
 		int variants = 0;
 		for(unsigned int variantAAi = 0; variantAAi < 4; variantAAi++)
@@ -33,7 +40,7 @@ void randomTests_withVariants()
 			std::string AAsequence_variant = AAsequence;
 			for(unsigned int pos = 0; pos < AAsequence_variant.size(); pos++)
 			{
-				if(Utilities::randomDouble() <= (double)1/AAsequence_variant.size())
+				if(randomDouble() <= (double)1/AAsequence_variant.size())
 				{
 					std::string newAA;
 					do {
@@ -48,8 +55,8 @@ void randomTests_withVariants()
 					for(unsigned int pI = 0; pI < 3; pI++)
 					{
 						unsigned int pI_nucleotideSequence = 3 * pos + pI;
-						unsigned char oldChar = oldCodon.at(pI);
-						unsigned char newChar = newCodon.at(pI);
+						char oldChar = oldCodon.at(pI);
+						char newChar = newCodon.at(pI);
 						assert(nucleotideSequnce.at(pI_nucleotideSequence) == oldChar);
 						if(oldChar != newChar)
 						{
@@ -66,8 +73,8 @@ void randomTests_withVariants()
 						for(unsigned int pI = 0; pI < 3; pI++)
 						{
 							unsigned int pI_nucleotideSequence = 3 * pos + pI;
-							unsigned char oldChar = oldCodon.at(pI);
-							unsigned char newChar = newCodon.at(pI);
+							char oldChar = oldCodon.at(pI);
+							char newChar = newCodon.at(pI);
 							assert(nucleotideSequnce.at(pI_nucleotideSequence) == oldChar);
 							if(oldChar != newChar)
 							{
@@ -181,7 +188,7 @@ void randomTests_withVariants()
 						assert(exon_stop_pos >= ((int)currentExonStart - 1));
 
 
-						exons.push_back(make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+						exons.push_back(std::make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
 						// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
 
 						if(currentExonStart <= exon_stop_pos)
@@ -312,7 +319,7 @@ void test_proper_improper_enumeration()
 					{
 						translation_coordinates_beforeExons_toAfterExons[pI] = offset_added_bases+pI;
 					}
-					exons.push_back(make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+					exons.push_back(std::make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
 					// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
 
 					if(currentExonStart <= exon_stop_pos)
@@ -385,7 +392,7 @@ void test_proper_improper_enumeration()
 
 				for(unsigned int pI = 0; pI < referenceGenome_plus.length(); pI++)
 				{
-					if(Utilities::randomDouble() < 0.02)
+					if(randomDouble() < 0.02)
 					{
 						variantFromVCF vv;
 
@@ -395,9 +402,9 @@ void test_proper_improper_enumeration()
 
 						std::string variantAllele;
 
-						if(Utilities::randomDouble() <= 0.5)
+						if(randomDouble() <= 0.5)
 						{
-							if(Utilities::randomDouble() <= 0.5)
+							if(randomDouble() <= 0.5)
 							{
 								variantAllele = "-";
 								n_DELs++;
@@ -422,7 +429,7 @@ void test_proper_improper_enumeration()
 
 						assert(vv.referenceString.length() == variantAllele.length());
 						assert(variantAllele != vv.referenceString);
-						if(Utilities::randomDouble() < 0.2)
+						if(randomDouble() < 0.2)
 						{
 							vv.sampleAlleles = std::vector<std::string>({variantAllele, variantAllele});
 							vv.sampleAlleles_interesting = {true, true};
@@ -530,7 +537,7 @@ void randomTests_withVariants_2()
 			{
 				if(AAvariants.count(pI) == 0)
 				{
-					for(string& h : AA_haplotypes)
+					for(std::string& h : AA_haplotypes)
 					{
 						h.push_back(AAsequence.at(pI));
 					}
@@ -580,7 +587,7 @@ void randomTests_withVariants_2()
 							{
 								translation_coordinates_beforeExons_toAfterExons[pI] = offset_added_bases+pI;
 							}
-							exons.push_back(make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+							exons.push_back(std::make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
 							// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
 
 							if(currentExonStart <= exon_stop_pos)
@@ -748,7 +755,7 @@ void randomTests_withVariants_2()
 							assert(exon_stop_pos >= ((int)currentExonStart - 1));
 
 
-							exons.push_back(make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+							exons.push_back(std::make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
 							// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
 
 							if(currentExonStart <= exon_stop_pos)
@@ -918,7 +925,7 @@ void randomTests()
 						assert(exon_stop_pos >= ((int)currentExonStart - 1));
 
 
-						exons.push_back(make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+						exons.push_back(std::make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
 						// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
 
 						if(currentExonStart <= exon_stop_pos)
@@ -1285,33 +1292,4 @@ void assert_AA_sets_identical(const std::set<std::string>& s1, const std::set<st
 	}
 	assert(s1 == s2);
 }
-
-unsigned int randomNumber(unsigned int max_inclusive)
-{
-	int n = rand() % (max_inclusive+1);
-	assert((n >= 0) && (n <= max_inclusive));
-	return n;
-}
-
-std::string generateRandomNucleotideSequence(int length)
-{
-	std::string forReturn;
-	forReturn.reserve(length);
-	for(int i = 0; i < length; i++)
-	{
-		forReturn.push_back(randomNucleotide());
-	}
-	assert(forReturn.length() == length);
-	return forReturn;
-}
-
-double randomDouble()
-{
-	assert(RAND_MAX != 0);
-	double f = (double)rand() / RAND_MAX;
-	assert(f >= 0);
-	assert(f <= 1);
-	return f;
-}
-
 
