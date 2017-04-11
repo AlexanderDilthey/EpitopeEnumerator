@@ -28,13 +28,14 @@ int main(int argc, char *argv[]) {
 	std::vector<std::string> ARG (argv + 1, argv + argc + !argc);
 	std::map<std::string, std::string> arguments;
 
-	int testing = 1;
+	int testing = 2;
 	if(testing == 1)
 	{
 		some_simple_tests();
 	}
 	else if(testing == 2)
 	{
+		test_proper_improper_enumeration();
 		randomTests_withVariants_2();
 		randomTests();
 		randomTests_withVariants();
@@ -94,7 +95,7 @@ int main(int argc, char *argv[]) {
 		assert("minus-strand transcripts!" == "");
 		assert("add stop codons!" == "");
 		assert("add filter for PASS" == "");
-		assert("write tests for stop codons" = "!");
+		assert("write tests for stop codons" == "!");
 	}
 
 	return 0;
@@ -553,11 +554,14 @@ void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const
 		fragmentT h1_fragment = AAHaplotypeFromSequence_stopAware(sequence_1, positions_1, interesting_1);
 		fragmentT h2_fragment = AAHaplotypeFromSequence_stopAware(sequence_2, positions_2, interesting_2);
 
-		//std::cout << "One pair:\n";
-		//printFragment(h1_fragment);
-		//printFragment(h2_fragment);
-		//std::cout << "--" << "\n" << std::flush;
-
+		/*
+		std::cout << "One pair:\n";
+		std::cout << sequence_1 << "\n";
+		printFragment(h1_fragment);
+		std::cout << sequence_2 << "\n";
+		printFragment(h2_fragment);
+		std::cout << "--" << "\n" << std::flush;
+		*/
 		assert(std::get<0>(h1_fragment).size() == std::get<1>(h1_fragment).size());
 		assert(std::get<0>(h2_fragment).size() == std::get<2>(h2_fragment).size());
 		std::vector<fragmentT> fragments_1 = AAHaplotypeIntoFragments(fragmentSize, h1_fragment);
@@ -644,6 +648,7 @@ fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const s
 	std::vector<bool> runningInteresting;
 
 	int currentPos = 0;
+	bool runningCodon_interesting = false;
 	while(currentPos < (int)sequence.length())
 	{
 		unsigned char thisC = sequence.at(currentPos);
@@ -653,11 +658,13 @@ fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const s
 			runningPositions.push_back(positions.at(currentPos));
 			runningInteresting.push_back(interesting.at(currentPos));
 		}
+		runningCodon_interesting = (runningCodon_interesting || interesting.at(currentPos));
 
 		if(runningCodon.length() == 3)
 		{
 			std::string translation = translateCodon2AA(runningCodon);
 			bool interesting = (runningInteresting.at(0) || runningInteresting.at(1) || runningInteresting.at(2));
+			interesting = runningCodon_interesting;
 			int lastPos = -2;
 			int minPos = -2;
 			int maxPos = -2;
@@ -699,6 +706,8 @@ fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const s
 			runningCodon.clear();
 			runningPositions.clear();
 			runningInteresting.clear();
+
+			runningCodon_interesting = false;
 		}
 		currentPos++;
 	}
@@ -970,7 +979,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 		runningHaplotype referenceHaplotype;
 		runningHaplotype firstHaplotype;
 		std::vector<runningHaplotype> sampleHaplotypes = {firstHaplotype};
-		int openedHaplotypes = 1;
+		size_t openedHaplotypes = 1;
 		bool have_deleted_haplotype = false;
 
 		auto doExtension = [&](std::string referenceSequence, std::vector<int> referenceSequence_refCoordinates, std::vector<std::string> sampleAlleles, std::vector<std::vector<int>> sampleAlleles_refCoordinates, std::vector<std::vector<bool>> sampleAlleles_interesting) -> void {
@@ -982,18 +991,18 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 
 			std::vector<bool> referenceSequence_interesting;
 			referenceSequence_interesting.resize(referenceSequence.length(), false);
-
-
 			referenceHaplotype.extendWithNucleotides(referenceSequence, referenceSequence_refCoordinates, referenceSequence_interesting);
 
+			/*
 			std::vector<std::vector<bool>> sampleAlleles_perCharacter_interesting;
 			sampleAlleles_perCharacter_interesting.reserve(sampleAlleles.size());
-			for(const std::string& oneSampleAllele : sampleAlleles)
+			for(bool oneSampleAllele_isInteresting : sampleAlleles_interesting)
 			{
 				std::vector<bool> oneSampleAllele_interesting;
-				oneSampleAllele_interesting.resize(oneSampleAllele.length(), false);
+				oneSampleAllele_interesting.resize(referenceSequence.length(), oneSampleAllele_isInteresting);
 				sampleAlleles_perCharacter_interesting.push_back(oneSampleAllele_interesting);
 			}
+			*/
 
 			bool heterozygous = (sampleAlleles.at(0) != sampleAlleles.at(1)) || (sampleAlleles_interesting.at(0) != sampleAlleles_interesting.at(1)) || (sampleAlleles_refCoordinates.at(0) != sampleAlleles_refCoordinates.at(1));
 			size_t existingSampleHaplotypes_maxI = sampleHaplotypes.size();
@@ -1002,7 +1011,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 				assert(sampleAlleles.at(0) == sampleAlleles.at(1));
 				for(unsigned int existingHaplotypeI = 0; existingHaplotypeI < existingSampleHaplotypes_maxI; existingHaplotypeI++)
 				{
-					sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0), sampleAlleles_refCoordinates.at(0), sampleAlleles_perCharacter_interesting.at(0));
+					sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0), sampleAlleles_refCoordinates.at(0), sampleAlleles_interesting.at(0));
 				}
 			}
 			else
@@ -1011,15 +1020,26 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 				{
 					runningHaplotype preExtensionHaplotype = sampleHaplotypes.at(existingHaplotypeI);
 
-					sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0), sampleAlleles_refCoordinates.at(0), sampleAlleles_perCharacter_interesting.at(0));
+					sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0), sampleAlleles_refCoordinates.at(0), sampleAlleles_interesting.at(0));
 
 					sampleHaplotypes.push_back(preExtensionHaplotype);
-					sampleHaplotypes.back().extendWithNucleotides(sampleAlleles.at(1), sampleAlleles_refCoordinates.at(1), sampleAlleles_perCharacter_interesting.at(1));
-
-					openedHaplotypes *= 2;
+					sampleHaplotypes.back().extendWithNucleotides(sampleAlleles.at(1), sampleAlleles_refCoordinates.at(1), sampleAlleles_interesting.at(1));
 				}
 
+				openedHaplotypes *= 2;
+
+
 			}
+
+			/*
+			if(!(sampleHaplotypes.size() <= openedHaplotypes))
+			{
+				std::cerr << "sampleHaplotypes.size()" << ": " << sampleHaplotypes.size() << "\n";
+				std::cerr << "openedHaplotypes" << ": " << openedHaplotypes << "\n";
+				std::cerr << std::flush;
+			}
+			*/
+			assert(sampleHaplotypes.size() <= openedHaplotypes);
 
 
 			//if(sampleHaplotypes.size() > 1)
@@ -1101,11 +1121,6 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 			}
 
 			assert(sampleHaplotypes.size() == (sampleHaplotypes_size_beforeDeletion - delete_indices.size()));
-
-			if(sampleHaplotypes.size() == 0)
-			{
-				return;
-			}
 		};
 
 		//std::string collectedReferenceSequence;
@@ -1119,25 +1134,27 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 
 			for(unsigned int referencePos = exon.firstPos; referencePos <= exon.lastPos; referencePos++)
 			{
-				assert(sampleHaplotypes.size() >= 1);
-				if(variants_plus.count(chromosomeID) && variants_plus.at(chromosomeID).count(referencePos))
+				if(sampleHaplotypes.size() >= 1)
 				{
-					std::tuple<std::string, std::vector<int>, std::vector<bool>, std::vector<std::string>, std::vector<std::vector<int>>, std::vector<std::vector<bool>>> reference_and_variantAlleles = get_reference_and_variantAlleles(variants_plus.at(chromosomeID).at(referencePos), referencePos, exon.lastPos);
+					if(variants_plus.count(chromosomeID) && variants_plus.at(chromosomeID).count(referencePos))
+					{
+						std::tuple<std::string, std::vector<int>, std::vector<bool>, std::vector<std::string>, std::vector<std::vector<int>>, std::vector<std::vector<bool>>> reference_and_variantAlleles = get_reference_and_variantAlleles(variants_plus.at(chromosomeID).at(referencePos), referencePos, exon.lastPos);
 
-					doExtension(std::get<0>(reference_and_variantAlleles), std::get<1>(reference_and_variantAlleles), std::get<3>(reference_and_variantAlleles), std::get<4>(reference_and_variantAlleles), std::get<5>(reference_and_variantAlleles));
+						doExtension(std::get<0>(reference_and_variantAlleles), std::get<1>(reference_and_variantAlleles), std::get<3>(reference_and_variantAlleles), std::get<4>(reference_and_variantAlleles), std::get<5>(reference_and_variantAlleles));
 
-					int reference_extension_length_noGaps = countCharacters_noGaps(std::get<0>(reference_and_variantAlleles));
-					referencePos += (reference_extension_length_noGaps - 1);
-				}
-				else
-				{
-					//std::cerr << "\tnV\n" << std::flush;
-					std::string referenceCharacter = referenceGenome_plus.at(chromosomeID).substr(referencePos, 1);
-					std::vector<std::string> extendWith = {referenceCharacter, referenceCharacter};
-					std::vector<int> referenceAllele_coordinates = {(int)referencePos};
-					std::vector<std::vector<int>> sampleAlleles_refCoordinates = {{(int)referencePos},{(int)referencePos}};
-					std::vector<std::vector<bool>> extendWith_interesting = {std::vector<bool>({false}), std::vector<bool>({false})};
-					doExtension(referenceCharacter, referenceAllele_coordinates, extendWith, sampleAlleles_refCoordinates, extendWith_interesting);
+						int reference_extension_length_noGaps = countCharacters_noGaps(std::get<0>(reference_and_variantAlleles));
+						referencePos += (reference_extension_length_noGaps - 1);
+					}
+					else
+					{
+						//std::cerr << "\tnV\n" << std::flush;
+						std::string referenceCharacter = referenceGenome_plus.at(chromosomeID).substr(referencePos, 1);
+						std::vector<std::string> extendWith = {referenceCharacter, referenceCharacter};
+						std::vector<int> referenceAllele_coordinates = {(int)referencePos};
+						std::vector<std::vector<int>> sampleAlleles_refCoordinates = {{(int)referencePos},{(int)referencePos}};
+						std::vector<std::vector<bool>> extendWith_interesting = {std::vector<bool>({false}), std::vector<bool>({false})};
+						doExtension(referenceCharacter, referenceAllele_coordinates, extendWith, sampleAlleles_refCoordinates, extendWith_interesting);
+					}
 				}
 			}
 		}
