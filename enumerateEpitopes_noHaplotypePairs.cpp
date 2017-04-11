@@ -11,6 +11,38 @@
 #include "enumerateEpitopes_noHaplotypePairs.h"
 #include "Util.h"
 
+std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequencies_easy(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
+{
+	std::map<int, std::set<std::string>> forReturn;
+
+	std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+	enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope);
+
+	for(auto haplotypesOneLength : p_per_epitope)
+	{
+		int k = haplotypesOneLength.first;
+		for(auto fragment : haplotypesOneLength.second)
+		{
+			std::string peptide = fragment.first;
+			double p = fragment.second.first;
+
+			if(limitToCertainEpitopes)
+			{
+				if(abs(p - 1) <= 1e-5)
+				{
+					forReturn[k].insert(peptide);
+				}
+			}
+			else
+			{
+				forReturn[k].insert(peptide);
+			}
+		}
+	}
+
+	return forReturn;
+}
+
 void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
 {
 	for(auto k_and_stored_fragments : p_per_epitope_forRet)

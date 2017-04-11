@@ -287,7 +287,7 @@ void randomTests_withVariants()
 
 void test_proper_improper_enumeration()
 {
-	for(unsigned int iteration = 0; iteration < 1000; iteration++)
+	for(unsigned int iteration = 0; iteration < 100; iteration++)
 	{
 		std::cout << "Testing iteration " << iteration << "\n" << std::flush;
 

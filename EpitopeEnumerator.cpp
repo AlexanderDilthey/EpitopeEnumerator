@@ -30,23 +30,112 @@ int main(int argc, char *argv[]) {
 	std::vector<std::string> ARG (argv + 1, argv + argc + !argc);
 	std::map<std::string, std::string> arguments;
 
-	int testing = 2;
-	if(testing == 1)
+	arguments["action"] = "enumerate";
+	for(unsigned int i = 0; i < ARG.size(); i++)
+	{
+		if((ARG.at(i).length() > 2) && (ARG.at(i).substr(0, 2) == "--"))
+		{
+			std::string argname = ARG.at(i).substr(2);
+			std::string argvalue = ARG.at(i+1);
+			arguments[argname] = argvalue;
+		}
+	}
+
+	assert(arguments.count("action"));
+	if(arguments.at("action") == "testing")
 	{
 		some_simple_tests();
-	}
-	else if(testing == 2)
-	{
 		test_proper_improper_enumeration();
 		randomTests_withVariants_2();
 		randomTests();
 		randomTests_withVariants();
 	}
-	else
+	else if(arguments.at("action") == "enumerate")
 	{
+		auto requireArgument = [&arguments](const std::string& name, bool checkExistence) -> void {
+			if(! arguments.count(name))
+			{
+				std::cerr << "Please specify argument --" << name << "\n" << std::flush;
+				throw std::runtime_error("Missing argument.");
+			}
+			if(checkExistence)
+			{
+				std::ifstream testOpen;
+				testOpen.open(arguments.at(name).c_str());
+				if(!testOpen.is_open())
+				{
+					std::cerr << "The file " << arguments.at(name) << ", specified by --" << name << " cannot be opened - is this a valid path?" << std::flush;
+					throw std::runtime_error("File cannot be opened or does not exist.");
+				}
+			}
+		};
+
 		arguments["referenceGenome"] = "data/GRCh38_full_analysis_set_plus_decoy_hla.fa.chr20";
-		arguments["normalVCF"] = "data/NA12878.vcf.chr20";
 		arguments["transcripts"] = "data/gencode.v26.annotation.gff3";
+		arguments["normalVCF"] = "data/NA12878.vcf.chr20";
+		arguments["tumourVCF"] = "data/NA12878.vcf.chr20";
+
+		requireArgument("referenceGenome", true);
+		requireArgument("transcripts", true);
+		requireArgument("normalVCF", true);
+		requireArgument("tumourVCF", true);
+
+		std::set<std::pair<int, int>> search_lengths = {make_pair(8,2)};
+
+		std::set<int> epitopeLengths_tumour;
+		std::set<int> epitopeLengths_normal;
+
+		for(auto sL : search_lengths)
+		{
+			int coreEpitopeLength = sL.first;
+			int additionalBuffer = sL.second;
+			epitopeLengths_tumour.insert(coreEpitopeLength + 2 * additionalBuffer);
+			epitopeLengths_normal.insert(coreEpitopeLength);
+		}
+
+		std::map<std::string, std::string> referenceGenome = readFASTA(arguments.at("referenceGenome"));
+		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
+		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"), referenceGenome);
+
+		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
+		std::map<std::string, std::map<int, variantFromVCF>> variants_combined = combineVariants(variants, variants_tumour, referenceGenome);
+
+
+		std::map<int, std::set<std::string>> epitopes_normal = enumeratePeptideHaplotypes_improperFrequencies_easy(referenceGenome, transcripts, variants, epitopeLengths_normal, false);
+		std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_improperFrequencies_easy(referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true);
+
+		std::map<std::pair<int, int>, std::map<std::string, std::set<std::string>>> epitopes_tumour_exclusive_and_their_extended_haplotypes;
+		for(auto sL : search_lengths)
+		{
+			int coreEpitopeLength = sL.first;
+			int additionalBuffer = sL.second;
+			int combinedTumourEpitopeLength = coreEpitopeLength + 2 * additionalBuffer;
+
+			std::cout << "Search for length " << coreEpitopeLength << " + 2x" << additionalBuffer << "\n" << std::flush;
+			assert(epitopes_normal.count(coreEpitopeLength));
+			assert(epitopes_tumour.count(combinedTumourEpitopeLength));
+
+			std::cout << "\t" << epitopes_normal.at(coreEpitopeLength).size() << " normal epitopes.\n";
+			std::cout << "\t" << epitopes_tumour.at(combinedTumourEpitopeLength).size() << " tumour epitopes.\n" << std::flush;
+
+			for(const std::string& extendedTumourEpitope : epitopes_tumour.at(combinedTumourEpitopeLength))
+			{
+				std::string coreEpitope = extendedTumourEpitope.substr(additionalBuffer, coreEpitopeLength);
+				assert((int)coreEpitope.length() == coreEpitopeLength);
+
+				if(epitopes_normal.at(coreEpitopeLength).count(coreEpitope) == 0)
+				{
+					epitopes_tumour_exclusive_and_their_extended_haplotypes[sL][coreEpitope].insert(extendedTumourEpitope);
+				}
+			}
+
+			size_t found_tumour_only_epitopes = 0;
+			if(epitopes_tumour_exclusive_and_their_extended_haplotypes.count(sL))
+			{
+				found_tumour_only_epitopes = epitopes_tumour_exclusive_and_their_extended_haplotypes.at(sL).size();
+			}
+			std::cout << "\t" << found_tumour_only_epitopes << " tumour-only epitopes.\n" << std::flush;
+		}
 
 		/*
 		std::map<std::pair<int, int>, int> testP;
@@ -57,22 +146,8 @@ int main(int argc, char *argv[]) {
 		assert(2 == 10);
 		 */
 
-		for(unsigned int i = 0; i < ARG.size(); i++)
-		{
-			if((ARG.at(i).length() > 2) && (ARG.at(i).substr(0, 2) == "--"))
-			{
-				std::string argname = ARG.at(i).substr(2);
-				std::string argvalue = ARG.at(i+1);
-				arguments[argname] = argvalue;
-			}
-		}
 
-		std::map<std::string, std::string> referenceGenome = readFASTA(arguments.at("referenceGenome"));
-		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
-		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"), referenceGenome);
-
-		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
-		std::map<std::string, std::map<int, variantFromVCF>> variants_combined = combineVariants(variants, variants_tumour, referenceGenome);
+		/*
 
 		std::map<int, std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> haplotypeStore;
 		haplotypeStore[6] = std::map<std::string, std::map<double, std::set<std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>();
@@ -92,6 +167,9 @@ int main(int argc, char *argv[]) {
 				std::cout << "\t" << fragment.first << " " << p << "\n" << std::flush;
 			}
 		}
+
+		*/
+
 		assert(1 == 2);
 
 		assert("minus-strand transcripts!" == "");
