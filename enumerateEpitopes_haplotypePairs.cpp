@@ -13,6 +13,39 @@
 #include "Util.h"
 #include <cmath>
 
+std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_properFrequencies_easy(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
+{
+	std::map<int, std::set<std::string>> forReturn;
+
+	std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+	std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+	enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations);
+
+	for(auto haplotypesOneLength : p_per_epitope)
+	{
+		int k = haplotypesOneLength.first;
+		for(auto fragment : haplotypesOneLength.second)
+		{
+			std::string peptide = fragment.first;
+			double p = fragment.second.first;
+
+			if(limitToCertainEpitopes)
+			{
+				if(abs(p - 1) <= 1e-5)
+				{
+					forReturn[k].insert(peptide);
+				}
+			}
+			else
+			{
+				forReturn[k].insert(peptide);
+			}
+		}
+	}
+
+	return forReturn;
+}
+
 void enumeratePeptideHaplotypes(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
 {
 	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);

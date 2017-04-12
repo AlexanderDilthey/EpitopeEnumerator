@@ -11,6 +11,7 @@
 #include "enumerateEpitopes_noHaplotypePairs.h"
 #include "Util.h"
 
+
 std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequencies_easy(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
 {
 	std::map<int, std::set<std::string>> forReturn;
@@ -506,6 +507,8 @@ void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::str
 		std::string chromosomeID = transcript.chromosomeID;
 		if(referenceGenome_plus.count(chromosomeID) == 0)
 			continue;
+
+		std::cout << "Transcript " << transcriptI << " / " << transcripts_plus.size() << "\n" << std::flush;
 
 		// the oneTranscript_* maps are clear'ed within enumeratePeptideHaplotypes_oneTranscript
 		enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope_forRet);

@@ -82,17 +82,6 @@ int main(int argc, char *argv[]) {
 
 		std::set<std::pair<int, int>> search_lengths = {make_pair(8,2)};
 
-		std::set<int> epitopeLengths_tumour;
-		std::set<int> epitopeLengths_normal;
-
-		for(auto sL : search_lengths)
-		{
-			int coreEpitopeLength = sL.first;
-			int additionalBuffer = sL.second;
-			epitopeLengths_tumour.insert(coreEpitopeLength + 2 * additionalBuffer);
-			epitopeLengths_normal.insert(coreEpitopeLength);
-		}
-
 		std::map<std::string, std::string> referenceGenome = readFASTA(arguments.at("referenceGenome"));
 		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
 		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"), referenceGenome);
@@ -101,14 +90,21 @@ int main(int argc, char *argv[]) {
 		std::map<std::string, std::map<int, variantFromVCF>> variants_combined = combineVariants(variants, variants_tumour, referenceGenome);
 
 
-		std::map<int, std::set<std::string>> epitopes_normal = enumeratePeptideHaplotypes_improperFrequencies_easy(referenceGenome, transcripts, variants, epitopeLengths_normal, false);
-		std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_improperFrequencies_easy(referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true);
-
 		std::map<std::pair<int, int>, std::map<std::string, std::set<std::string>>> epitopes_tumour_exclusive_and_their_extended_haplotypes;
 		for(auto sL : search_lengths)
 		{
 			int coreEpitopeLength = sL.first;
 			int additionalBuffer = sL.second;
+
+			std::set<int> epitopeLengths_tumour;
+			std::set<int> epitopeLengths_normal;
+
+			epitopeLengths_tumour.insert(coreEpitopeLength + 2 * additionalBuffer);
+			epitopeLengths_normal.insert(coreEpitopeLength);
+
+			std::map<int, std::set<std::string>> epitopes_normal = enumeratePeptideHaplotypes_properFrequencies_easy(referenceGenome, transcripts, variants, epitopeLengths_normal, false);
+			std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_properFrequencies_easy(referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true);
+
 			int combinedTumourEpitopeLength = coreEpitopeLength + 2 * additionalBuffer;
 
 			std::cout << "Search for length " << coreEpitopeLength << " + 2x" << additionalBuffer << "\n" << std::flush;
@@ -171,6 +167,9 @@ int main(int argc, char *argv[]) {
 		*/
 
 		assert(1 == 2);
+
+		assert("Read tumour variants!" == "");
+
 
 		assert("minus-strand transcripts!" == "");
 		assert("add stop codons!" == "");

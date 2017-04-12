@@ -30,5 +30,6 @@ void printFragment(const fragmentT& f);
 
 std::tuple<std::string, std::vector<int>, std::vector<bool>, std::vector<std::string>, std::vector<std::vector<int>>, std::vector<std::vector<bool>>> get_reference_and_variantAlleles(const variantFromVCF& v, unsigned int startReferencePos, unsigned int lastReferencePos);
 
+std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_properFrequencies_easy(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes);
 
 #endif /* ENUMERATEEPITOPES_HAPLOTYPEPAIRS_H_ */
