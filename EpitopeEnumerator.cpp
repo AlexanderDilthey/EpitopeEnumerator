@@ -70,11 +70,13 @@ int main(int argc, char *argv[]) {
 			}
 		};
 
-		arguments["referenceGenome"] = "data/GRCh38_full_analysis_set_plus_decoy_hla.fa.chr20";
-		arguments["transcripts"] = "data/gencode.v26.annotation.gff3";
-		arguments["normalVCF"] = "data/NA12878.vcf.chr20";
-		arguments["tumourVCF"] = "data/NA12878.vcf.chr20";
-
+		if(!(arguments.count("referenceGenome") || arguments.count("transcripts") || arguments.count("normalVCF") || arguments.count("tumourVCF")))
+		{
+			arguments["referenceGenome"] = "dataGRCh38_full_analysis_set_plus_decoy_hla.fa.chr20";
+			arguments["transcripts"] = "data/gencode.v26.annotation.gff3";
+			arguments["normalVCF"] = "data/NA12878.vcf.chr20";
+			arguments["tumourVCF"] = "data/NA12878.vcf.chr20";
+		}
 		requireArgument("referenceGenome", true);
 		requireArgument("transcripts", true);
 		requireArgument("normalVCF", true);
@@ -83,6 +85,19 @@ int main(int argc, char *argv[]) {
 		std::set<std::pair<int, int>> search_lengths = {make_pair(8,2)};
 
 		std::map<std::string, std::string> referenceGenome = readFASTA(arguments.at("referenceGenome"));
+		for(auto& r : referenceGenome)
+		{
+			std::transform(r.second.begin(), r.second.end(), r.second.begin(), ::toupper);
+			for(unsigned int pI = 0; pI < r.second.length(); pI++)
+			{
+				char c = r.second.at(pI);
+				if(!((c == 'A') || (c == 'C') || (c == 'G') || (c == 'T') || (c == 'N')))
+				{
+					assert(!((c == 'a') || (c == 'c') || (c == 'g') || (c == 't') || (c == 'n')));
+					r.second.at(pI) = 'N';
+				}
+			}
+		}
 		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
 		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"), referenceGenome);
 

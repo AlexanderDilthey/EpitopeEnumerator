@@ -65,10 +65,8 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 
 				if(positionsCoveredByVariant.count(thisVariant.chromosomeID) == 0)
 				{
-					std::cerr << "Problem with variant: assumedly wrong reference allele. Did you generate your VCF from the specified reference genome?" << "\n";
-					std::cerr << "\t" << "VCF: " << VCF << "\n";
-					std::cerr << "\t" << "Chromosome: " << thisVariant.chromosomeID << "\n";
-					std::cerr << "\t" << "Position (0-based): " << thisVariant.position << "\n";
+					std::cerr << "Problem with variant: I don't seem to have contig " << thisVariant.chromosomeID << " in the reference genome." << "\n" << std::flush;
+					throw std::runtime_error("Reference mismatch.");
 				}
 
 				unsigned int thisVariant_lastPosition = thisVariant.position + thisVariant.referenceString.length() - 1;

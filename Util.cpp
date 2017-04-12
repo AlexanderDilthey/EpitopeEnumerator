@@ -9,6 +9,7 @@
 
 #include <fstream>
 #include <exception>
+#include <iostream>
 #include <stdexcept>
 #include <assert.h>
 #include <sstream>
@@ -61,13 +62,14 @@ std::map<std::string, std::string> readFASTA(std::string file, bool fullIdentifi
 				{
 					for(size_t i = 0; i < ident.size(); i++)
 					{
-						if(ident.at(i) == ' ')
+						if((ident.at(i) == ' ') || (ident.at(i) == '\t'))
 						{
 							ident = ident.substr(0, i);
 							break;
 						}
 					}
 				}
+				
 				currentSequenceIdentifier = ident;
 				assert(forReturn.count(ident) == 0);
 			}
