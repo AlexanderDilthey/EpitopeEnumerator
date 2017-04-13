@@ -14,7 +14,7 @@
 #include "enumerateEpitopes_noHaplotypePairs.h"
 #include "Util.h"
 
-void randomTests_withVariants()
+void randomTests_withVariants(int threads)
 {
 	// this function generates a range of modified AA haplotypes and
 	// generates the SNVs corresponding to the changed codons
@@ -139,7 +139,7 @@ void randomTests_withVariants()
 
 				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 				std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+				enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 				for(auto k : AA_mers)
 				{
@@ -165,7 +165,7 @@ void randomTests_withVariants()
 					}
 				}
 
-				compare_proper_improper_peptides(referenceGenome, transcripts, variants, AA_mers);
+				compare_proper_improper_peptides(threads, referenceGenome, transcripts, variants, AA_mers);
 			}
 
 			/*
@@ -285,7 +285,7 @@ void randomTests_withVariants()
 	}
 }
 
-void test_proper_improper_enumeration()
+void test_proper_improper_enumeration(int threads)
 {
 	for(unsigned int iteration = 0; iteration < 100; iteration++)
 	{
@@ -460,13 +460,13 @@ void test_proper_improper_enumeration()
 
 				checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
 
-				compare_proper_improper_peptides(referenceGenome, transcripts, variants, AA_mers);
+				compare_proper_improper_peptides(threads, referenceGenome, transcripts, variants, AA_mers);
 			}
 		}
 	}
 }
 
-void randomTests_withVariants_2()
+void randomTests_withVariants_2(int threads)
 {
 	// similar to randomTests_withVariants(), just that we're not starting
 	// with AA variants and fully check the generated AA set for correctness
@@ -703,7 +703,7 @@ void randomTests_withVariants_2()
 
 						std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 						std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-						enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+						enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 						for(auto k : AA_mers)
 						{
@@ -731,7 +731,7 @@ void randomTests_withVariants_2()
 							assert_AA_sets_identical(got_AAs,  expected_AAs);
 						}
 
-						compare_proper_improper_peptides(referenceGenome, transcripts, variants, AA_mers);
+						compare_proper_improper_peptides(threads, referenceGenome, transcripts, variants, AA_mers);
 					}
 				}
 
@@ -853,7 +853,7 @@ void randomTests_withVariants_2()
 	}
 }
 
-void randomTests()
+void randomTests(int threads)
 {
 	// recovery of expected AA-mers
 	for(unsigned int iteration = 0; iteration < 1000; iteration++)
@@ -889,7 +889,7 @@ void randomTests()
 
 				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 				std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-				enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+				enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
 
 				for(auto k : AA_mers)
 				{
@@ -996,8 +996,8 @@ void randomTests()
 
 					std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 					std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-					enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
-					compare_proper_improper_peptides(referenceGenome, transcripts, variants, AA_mers);
+					enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+					compare_proper_improper_peptides(threads, referenceGenome, transcripts, variants, AA_mers);
 
 					for(auto k : AA_mers)
 					{
@@ -1018,7 +1018,7 @@ void randomTests()
 	}
 }
 
-void some_simple_tests()
+void some_simple_tests(int threads)
 {
 	{
 		std::cout << "Test 1\n" << std::flush;
@@ -1096,7 +1096,7 @@ void some_simple_tests()
 			}
 		}
 
-		compare_proper_improper_peptides(referenceGenome, transcripts_plus, variants, {6});
+		compare_proper_improper_peptides(threads, referenceGenome, transcripts_plus, variants, {6});
 
 		//std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
 		//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope, p_per_epitope_locations);
@@ -1169,7 +1169,7 @@ void some_simple_tests()
 			}
 		}
 
-		compare_proper_improper_peptides(referenceGenome, transcripts_plus, variants, {6});
+		compare_proper_improper_peptides(threads, referenceGenome, transcripts_plus, variants, {6});
 
 		//std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
 		//enumeratePeptideHaplotypes(referenceGenome, transcripts_plus, variants, {6}, p_per_epitope, p_per_epitope_locations);
@@ -1177,7 +1177,7 @@ void some_simple_tests()
 	}
 }
 
-void compare_proper_improper_peptides(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths)
+void compare_proper_improper_peptides(int threads, const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths)
 {
 	std::map<int, std::map<std::string, double>> peptides_proper;
 	std::map<int, std::map<std::string, double>> peptides_improper;
@@ -1202,7 +1202,7 @@ void compare_proper_improper_peptides(const std::map<std::string, std::string> r
 		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
 
-		enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations);
+		enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations);
 
 		for(auto haplotypesOneLength : p_per_epitope)
 		{

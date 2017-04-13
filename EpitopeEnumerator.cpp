@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
 	std::vector<std::string> ARG (argv + 1, argv + argc + !argc);
 	std::map<std::string, std::string> arguments;
 
-	arguments["action"] = "enumerate";
+	arguments["action"] = "testing";
 	for(unsigned int i = 0; i < ARG.size(); i++)
 	{
 		if((ARG.at(i).length() > 2) && (ARG.at(i).substr(0, 2) == "--"))
@@ -44,11 +44,11 @@ int main(int argc, char *argv[]) {
 	assert(arguments.count("action"));
 	if(arguments.at("action") == "testing")
 	{
-		some_simple_tests();
-		test_proper_improper_enumeration();
-		randomTests_withVariants_2();
-		randomTests();
-		randomTests_withVariants();
+		some_simple_tests(4);
+		test_proper_improper_enumeration(4);
+		randomTests_withVariants_2(1);
+		randomTests(1);
+		randomTests_withVariants(1);
 	}
 	else if(arguments.at("action") == "enumerate")
 	{
@@ -117,8 +117,8 @@ int main(int argc, char *argv[]) {
 			epitopeLengths_tumour.insert(coreEpitopeLength + 2 * additionalBuffer);
 			epitopeLengths_normal.insert(coreEpitopeLength);
 
-			std::map<int, std::set<std::string>> epitopes_normal = enumeratePeptideHaplotypes_properFrequencies_easy(referenceGenome, transcripts, variants, epitopeLengths_normal, false);
-			std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_properFrequencies_easy(referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true);
+			std::map<int, std::set<std::string>> epitopes_normal = enumeratePeptideHaplotypes_properFrequencies_easy(16, referenceGenome, transcripts, variants, epitopeLengths_normal, false);
+			std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_properFrequencies_easy(16, referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true);
 
 			int combinedTumourEpitopeLength = coreEpitopeLength + 2 * additionalBuffer;
 

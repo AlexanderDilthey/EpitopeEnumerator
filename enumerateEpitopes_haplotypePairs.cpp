@@ -12,14 +12,15 @@
 
 #include "Util.h"
 #include <cmath>
+#include <omp.h>
 
-std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_properFrequencies_easy(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
+std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_properFrequencies_easy(int threads, const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
 {
 	std::map<int, std::set<std::string>> forReturn;
 
 	std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 	std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-	enumeratePeptideHaplotypes(referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations);
+	enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations);
 
 	for(auto haplotypesOneLength : p_per_epitope)
 	{
@@ -46,7 +47,7 @@ std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_properFrequencie
 	return forReturn;
 }
 
-void enumeratePeptideHaplotypes(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
+void enumeratePeptideHaplotypes(int threads, const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
 {
 	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);
 	std::map<std::string, std::map<int, variantFromVCF>> variants_minus = getMinusStrandVariants(variants, referenceGenome_minus);
@@ -68,8 +69,16 @@ void enumeratePeptideHaplotypes(const std::map<std::string, std::string> referen
 		p_per_epitope_locations_forRet[k].count("");
 	}
 
-	enumeratePeptideHaplotypes_plus(referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet, p_per_epitope_locations_forRet);
-	enumeratePeptideHaplotypes_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet, p_per_epitope_locations_forRet);
+	if(threads == 1)
+	{
+		enumeratePeptideHaplotypes_plus(referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet, p_per_epitope_locations_forRet);
+		enumeratePeptideHaplotypes_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet, p_per_epitope_locations_forRet);
+	}
+	else
+	{
+		enumeratePeptideHaplotypes_plus_mt(threads, referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet, p_per_epitope_locations_forRet);
+		enumeratePeptideHaplotypes_plus_mt(threads, referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet, p_per_epitope_locations_forRet);
+	}
 }
 
 // this function returns:
@@ -156,6 +165,159 @@ void enumeratePeptideHaplotypes_plus(const std::map<std::string, std::string> re
 		}
 	}
 }
+
+void enumeratePeptideHaplotypes_plus_mt(int threads, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
+{
+	assert(threads > 0);
+
+	checkVariantsConsistentWithReferenceGenome(variants_plus, referenceGenome_plus); // paranoid
+	assert(p_per_epitope_forRet.size() == p_per_epitope_locations_forRet.size());
+
+	std::vector<std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>> p_per_epitope_perThread;
+	std::vector<std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>> p_per_epitope_locations_perThread;
+
+	p_per_epitope_perThread.resize(threads);
+	p_per_epitope_locations_perThread.resize(threads);
+	for(auto k : p_per_epitope_forRet)
+	{
+		assert(p_per_epitope_locations_forRet.count(k.first));
+	}
+
+	size_t transcripts_n = transcripts_plus.size();
+	omp_set_num_threads(threads);
+	#pragma omp parallel for
+	for(unsigned int transcriptI = 0; transcriptI < transcripts_plus.size(); transcriptI++)
+	{
+		int tI = omp_get_thread_num();
+		if(tI == 0)
+		{
+			std::cout << "Thread " << tI << ", transcript " << transcriptI << " / " << transcripts_n << " (this strand)." << std::flush;
+		}
+		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> oneTranscript_p_per_epitope;
+		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> oneTranscript_p_per_epitope_locations;
+
+		for(const auto& k : p_per_epitope_forRet)
+		{
+			oneTranscript_p_per_epitope[k.first].count("");
+			oneTranscript_p_per_epitope_locations[k.first].count("");
+		}
+
+		const transcript& transcript = transcripts_plus.at(transcriptI);
+		assert(transcript.strand == '+');
+		std::string chromosomeID = transcript.chromosomeID;
+		if(referenceGenome_plus.count(chromosomeID) == 0)
+			continue;
+
+		// the oneTranscript_* maps are clear'ed within enumeratePeptideHaplotypes_oneTranscript
+		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope, oneTranscript_p_per_epitope_locations);
+
+		for(const auto& k : p_per_epitope_forRet)
+		{
+			for(const auto& epitope : oneTranscript_p_per_epitope.at(k.first))
+			{
+				std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>> positions = epitope.second.second;
+
+				if(invertPositions)
+				{
+					std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>> inverted_positions;
+					for(auto p : positions)
+					{
+						std::pair<std::vector<std::pair<int, int>>, std::vector<bool>> inverted_p = p;
+						for(std::pair<int, int>& pP : inverted_p.first)
+						{
+							size_t referenceContig_length = referenceGenome_plus.at(chromosomeID).length();
+							pP.first = referenceContig_length - pP.first - 1;
+							pP.second = referenceContig_length - pP.second - 1;
+						}
+						inverted_positions.insert(p);
+					}
+					positions = inverted_positions;
+				}
+
+				if(p_per_epitope_perThread.at(tI)[k.first].count(epitope.first))
+				{
+					if(p_per_epitope_perThread.at(tI).at(k.first).at(epitope.first).first < epitope.second.first)
+					{
+						p_per_epitope_perThread.at(tI).at(k.first).at(epitope.first).first = epitope.second.first;
+					}
+					p_per_epitope_perThread.at(tI).at(k.first).at(epitope.first).second.insert(positions.begin(), positions.end());
+				}
+				else
+				{
+					p_per_epitope_perThread.at(tI)[k.first][epitope.first].first = epitope.second.first;
+					p_per_epitope_perThread.at(tI).at(k.first)[epitope.first].second = positions;
+				}
+			}
+			for(const auto& epitope : oneTranscript_p_per_epitope_locations.at(k.first))
+			{
+				for(const auto& location : epitope.second)
+				{
+					if(p_per_epitope_locations_perThread.at(tI)[k.first][epitope.first].count(location.first))
+					{
+						if(p_per_epitope_locations_perThread.at(tI).at(k.first).at(epitope.first).at(location.first) < location.second)
+						{
+							p_per_epitope_locations_perThread.at(tI).at(k.first).at(epitope.first).at(location.first) = location.second;
+						}
+					}
+					else
+					{
+						p_per_epitope_locations_perThread.at(tI)[k.first][epitope.first][location.first] = location.second;
+					}
+				}
+			}
+		}
+	}
+
+	for(const auto& k : p_per_epitope_forRet)
+	{
+		for(int tI = 0; tI < threads; tI++)
+		{
+			if(p_per_epitope_perThread.at(tI).count(k.first))
+			{
+				for(const auto& epitope : p_per_epitope_perThread.at(tI).at(k.first))
+				{
+					const std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>& positions = epitope.second.second;
+
+					if(p_per_epitope_forRet.at(k.first).count(epitope.first))
+					{
+						if(p_per_epitope_forRet.at(k.first).at(epitope.first).first < epitope.second.first)
+						{
+							p_per_epitope_forRet.at(k.first).at(epitope.first).first = epitope.second.first;
+						}
+						p_per_epitope_forRet.at(k.first).at(epitope.first).second.insert(positions.begin(), positions.end());
+					}
+					else
+					{
+						p_per_epitope_forRet.at(k.first)[epitope.first].first = epitope.second.first;
+						p_per_epitope_forRet.at(k.first)[epitope.first].second = positions;
+					}
+				}
+			}
+
+			if(p_per_epitope_locations_perThread.at(tI).count(k.first))
+			{
+				for(const auto& epitope : p_per_epitope_locations_perThread.at(tI).at(k.first))
+				{
+					for(auto location : epitope.second)
+					{
+						if(p_per_epitope_locations_forRet.at(k.first)[epitope.first].count(location.first))
+						{
+							if(p_per_epitope_locations_forRet.at(k.first).at(epitope.first).at(location.first) < location.second)
+							{
+								p_per_epitope_locations_forRet.at(k.first).at(epitope.first).at(location.first) = location.second;
+							}
+						}
+						else
+						{
+							p_per_epitope_locations_forRet.at(k.first)[epitope.first][location.first] = location.second;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 
 // this function returns:
 // p_per_epitope_forRet: for each occurring epitope, the probability of occurrence and possible locations (without probabilities)

@@ -165,8 +165,9 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 		if(line.length())
 		{
 			std::vector<std::string> line_fields = split(line, "\t");
-			if(line_fields.at(0) != "chr20") // todo remove
-				continue;
+
+			//if(line_fields.at(0) != "chr20") // todo remove
+			//	continue;
 
 			if(line_fields.at(2) != "CDS")
 				continue;
