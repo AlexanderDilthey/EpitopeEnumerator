@@ -191,6 +191,11 @@ int main(int argc, char *argv[]) {
 		assert("add filter for PASS" == "");
 		assert("write tests for stop codons" == "!");
 	}
+	else
+	{
+		std::cerr << "Unknown --action: " << arguments.at("action") << "\n" << std::flush;
+		throw std::runtime_error("Unknown action.");
+	}
 
 	return 0;
 }
