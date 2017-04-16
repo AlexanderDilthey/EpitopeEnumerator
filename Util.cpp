@@ -280,6 +280,11 @@ std::string translateCodon2AA(const std::string& codon)
 	fillTranslationTables();
 	assert(codon.length() == 3);
 
+	if(codon.find("N") != std::string::npos)
+	{
+		return "?";
+	}
+	
 	if(codon2AA.count(codon) == 0)
 	{
 		throw std::runtime_error("Codon "+codon+" undefined.");

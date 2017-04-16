@@ -117,8 +117,8 @@ int main(int argc, char *argv[]) {
 			epitopeLengths_tumour.insert(coreEpitopeLength + 2 * additionalBuffer);
 			epitopeLengths_normal.insert(coreEpitopeLength);
 
-			std::map<int, std::set<std::string>> epitopes_normal = enumeratePeptideHaplotypes_properFrequencies_easy(16, referenceGenome, transcripts, variants, epitopeLengths_normal, false);
-			std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_properFrequencies_easy(16, referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true);
+			std::map<int, std::set<std::string>> epitopes_normal = enumeratePeptideHaplotypes_properFrequencies_easy(1, referenceGenome, transcripts, variants, epitopeLengths_normal, false);
+			std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_properFrequencies_easy(1, referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true);
 
 			int combinedTumourEpitopeLength = coreEpitopeLength + 2 * additionalBuffer;
 

@@ -165,7 +165,11 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 		if(line.length())
 		{
 			std::vector<std::string> line_fields = split(line, "\t");
-
+			
+			if(!((line_fields.at(0).size() >= 3) && (line_fields.at(0).substr(0, 3) == "chr")))
+			{
+				continue;
+			}
 			//if(line_fields.at(0) != "chr20") // todo remove
 			//	continue;
 

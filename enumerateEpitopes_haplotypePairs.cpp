@@ -605,6 +605,7 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 			p_per_epitope_forRet,
 			p_per_epitope_locations_forRet
 		);
+		
 		consideredHaplotypes++;
 
 		// increase by 1
