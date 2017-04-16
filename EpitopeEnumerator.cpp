@@ -105,7 +105,9 @@ int main(int argc, char *argv[]) {
 		}
 		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
 		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"), referenceGenome);
+		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
 
+		/*
 		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
 		std::map<std::string, std::map<int, variantFromVCF>> variants_combined = combineVariants(variants, variants_tumour, referenceGenome);
 
@@ -118,6 +120,17 @@ int main(int argc, char *argv[]) {
 			std::set<std::string> differences = identifyDifferences_naive(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
 
 			std::cout << "\t" << differences.size() << " tumour-only epitopes.\n" << std::flush;
+		}
+
+		 */
+
+		for(auto sL : search_lengths)
+		{
+			int coreEpitopeLength = sL.first;
+			int additionalBuffer = sL.second;
+			std::set<std::string> differences = identifyDifferences_faster(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
+
+			std::cout << "Core length " << coreEpitopeLength << ", padding " << additionalBuffer << ": " << differences.size() << " tumour-only epitopes.\n" << std::flush;
 		}
 
 		/*

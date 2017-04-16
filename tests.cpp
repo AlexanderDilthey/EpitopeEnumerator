@@ -1416,11 +1416,11 @@ void compare_proper_diff_peptides(int threads, const std::map<std::string, std::
 
 void test_naive_diff_epitopes_identical()
 {
-	for(unsigned int iteration = 0; iteration < 1000; iteration++)
+	for(unsigned int iteration = 0; iteration < 100; iteration++)
 	{
 		std::cout << "Testing epitope enumeration iteration " << iteration << "\n" << std::flush;
 
-		std::string AAsequence = generateRandomAASequence(50);
+		std::string AAsequence = generateRandomAASequence(100);
 		std::string nucleotideSequnce = translateAASequence2Codons(AAsequence);
 
 		std::set<int> AA_mers = {8, 12};
@@ -1613,7 +1613,6 @@ void test_naive_diff_epitopes_identical()
 							assert(p_per_epitope_normal.at(coreEpitopeLength).count(epitope) == 0);
 						}
 						assert_AA_sets_identical(differences, differences_faster);
-						std::cerr << differences_faster.size() << "\n" << std::flush;
 					}
 				}
 			}
