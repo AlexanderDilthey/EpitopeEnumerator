@@ -14,23 +14,24 @@
 #include <cmath>
 #include <omp.h>
 
-std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_properFrequencies_easy(int threads, const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
+std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_properFrequencies_easy(int threads, const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool returnOnlyEpitopesWithP1, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	std::map<int, std::set<std::string>> forReturn;
 
 	std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 	std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-	enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations);
+	enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations, ignoreCoreEpitopes, corePadding);
 
 	for(auto haplotypesOneLength : p_per_epitope)
 	{
 		int k = haplotypesOneLength.first;
+		forReturn[k].count("");
 		for(auto fragment : haplotypesOneLength.second)
 		{
 			std::string peptide = fragment.first;
 			double p = fragment.second.first;
 
-			if(limitToCertainEpitopes)
+			if(returnOnlyEpitopesWithP1)
 			{
 				if(abs(p - 1) <= 1e-5)
 				{
@@ -47,7 +48,7 @@ std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_properFrequencie
 	return forReturn;
 }
 
-void enumeratePeptideHaplotypes(int threads, const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
+void enumeratePeptideHaplotypes(int threads, const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);
 	std::map<std::string, std::map<int, variantFromVCF>> variants_minus = getMinusStrandVariants(variants, referenceGenome_minus);
@@ -71,20 +72,20 @@ void enumeratePeptideHaplotypes(int threads, const std::map<std::string, std::st
 
 	if(threads == 1)
 	{
-		enumeratePeptideHaplotypes_plus(referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet, p_per_epitope_locations_forRet);
-		enumeratePeptideHaplotypes_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet, p_per_epitope_locations_forRet);
+		enumeratePeptideHaplotypes_plus(referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet, p_per_epitope_locations_forRet, ignoreCoreEpitopes, corePadding);
+		enumeratePeptideHaplotypes_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet, p_per_epitope_locations_forRet, ignoreCoreEpitopes, corePadding);
 	}
 	else
 	{
-		enumeratePeptideHaplotypes_plus_mt(threads, referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet, p_per_epitope_locations_forRet);
-		enumeratePeptideHaplotypes_plus_mt(threads, referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet, p_per_epitope_locations_forRet);
+		enumeratePeptideHaplotypes_plus_mt(threads, referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet, p_per_epitope_locations_forRet, ignoreCoreEpitopes, corePadding);
+		enumeratePeptideHaplotypes_plus_mt(threads, referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet, p_per_epitope_locations_forRet, ignoreCoreEpitopes, corePadding);
 	}
 }
 
 // this function returns:
 // p_per_epitope_forRet: for each occurring epitope, the maximum probability of occurrence over all transcripts and ALL possible locations (without probabilities)
 // p_per_epitope_locations_forRet: for each occurring epitope, possible locations and their marginal maximum probabilities over all transcripts
-void enumeratePeptideHaplotypes_plus(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
+void enumeratePeptideHaplotypes_plus(const std::map<std::string, std::string>& referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	checkVariantsConsistentWithReferenceGenome(variants_plus, referenceGenome_plus); // paranoid
 	assert(p_per_epitope_forRet.size() == p_per_epitope_locations_forRet.size());
@@ -106,7 +107,7 @@ void enumeratePeptideHaplotypes_plus(const std::map<std::string, std::string> re
 			continue;
 
 		// the oneTranscript_* maps are clear'ed within enumeratePeptideHaplotypes_oneTranscript
-		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope_forRet, oneTranscript_p_per_epitope_locations_forRet);
+		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope_forRet, oneTranscript_p_per_epitope_locations_forRet, ignoreCoreEpitopes, corePadding);
 
 		for(auto k : p_per_epitope_forRet)
 		{
@@ -166,7 +167,7 @@ void enumeratePeptideHaplotypes_plus(const std::map<std::string, std::string> re
 	}
 }
 
-void enumeratePeptideHaplotypes_plus_mt(int threads, const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
+void enumeratePeptideHaplotypes_plus_mt(int threads, const std::map<std::string, std::string>& referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	assert(threads > 0);
 
@@ -209,7 +210,7 @@ void enumeratePeptideHaplotypes_plus_mt(int threads, const std::map<std::string,
 			continue;
 
 		// the oneTranscript_* maps are clear'ed within enumeratePeptideHaplotypes_oneTranscript
-		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope, oneTranscript_p_per_epitope_locations);
+		enumeratePeptideHaplotypes_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope, oneTranscript_p_per_epitope_locations, ignoreCoreEpitopes, corePadding);
 
 		for(const auto& k : p_per_epitope_forRet)
 		{
@@ -323,7 +324,7 @@ void enumeratePeptideHaplotypes_plus_mt(int threads, const std::map<std::string,
 // p_per_epitope_forRet: for each occurring epitope, the probability of occurrence and possible locations (without probabilities)
 // p_per_epitope_locations_forRet: for each occurring epitope, possible locations and their marginal probabilities
 // It would also be possible to return, for each epitope, the probabilities over sets of locations, but this doesn't currently seem very useful
-void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
+void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, const std::map<std::string, std::string>& referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	// validate exons - left to right, non-overlapping
 	int n_exons = transcript.exons.size();
@@ -603,7 +604,9 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 			nucleotideHaplotype_2_interesting,
 			1.0/(double)n_haplotype_pairs,
 			p_per_epitope_forRet,
-			p_per_epitope_locations_forRet
+			p_per_epitope_locations_forRet,
+			ignoreCoreEpitopes,
+			corePadding
 		);
 		
 		consideredHaplotypes++;
@@ -637,8 +640,12 @@ void enumeratePeptideHaplotypes_oneTranscript(const transcript& transcript, cons
 	assert((int)n_haplotype_pairs == consideredHaplotypes);
 }
 
-void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const std::string& sequence_1, const std::vector<int>& positions_1, const std::vector<bool>& interesting_1, const std::string& sequence_2, const std::vector<int>& positions_2, const std::vector<bool>& interesting_2, double p, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet)
+void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const std::string& sequence_1, const std::vector<int>& positions_1, const std::vector<bool>& interesting_1, const std::string& sequence_2, const std::vector<int>& positions_2, const std::vector<bool>& interesting_2, double p, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>>& p_per_epitope_locations_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
+	if(corePadding != 0)
+	{
+		assert(ignoreCoreEpitopes != 0);
+	}
 
 	assert(p >= 0);
 	assert(p <= 1);
@@ -689,6 +696,17 @@ void populateFragmentStorageFromNucleotideHaplotypePair_stopAware_additive(const
 		{
 			const std::string& peptide = peptide_and_positions.first;
 
+			if(ignoreCoreEpitopes != 0)
+			{
+				assert(corePadding >= 0);
+				assert(peptide.length() > 2 * corePadding);
+				std::string coreEpitope = peptide.substr(corePadding, peptide.length() - 2 * corePadding);
+				assert(coreEpitope.length() > 0);
+				if(ignoreCoreEpitopes->count(coreEpitope))
+				{
+					continue;
+				}
+			}
 			if(peptide == "SSSSSS")
 			{
 				//std::cout << "p: " << p << "\n" << std::flush;

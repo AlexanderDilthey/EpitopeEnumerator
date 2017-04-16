@@ -13,6 +13,8 @@
 #include "enumerateEpitopes_haplotypePairs.h"
 #include "enumerateEpitopes_noHaplotypePairs.h"
 #include "Util.h"
+#include "enumerateEpitopes_diff_pairs.h"
+#include "findEpitopeDifferences.h"
 
 void randomTests_withVariants(int threads)
 {
@@ -139,7 +141,7 @@ void randomTests_withVariants(int threads)
 
 				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 				std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-				enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+				enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations, 0, 0);
 
 				for(auto k : AA_mers)
 				{
@@ -285,11 +287,191 @@ void randomTests_withVariants(int threads)
 	}
 }
 
+void test_proper_diff_enumeration(int threads)
+{
+	for(unsigned int iteration = 0; iteration < 100; iteration++)
+	{
+		std::cout << "Testing proper / diff iteration " << iteration << "\n" << std::flush;
+
+		std::string AAsequence = generateRandomAASequence(50);
+		std::string nucleotideSequnce = translateAASequence2Codons(AAsequence);
+
+		std::set<int> AA_mers = {5, 7, 12};
+		for(char strand : {'+', '-'})
+		{
+			{
+				std::map<std::string, std::string> referenceGenome;
+				referenceGenome["chr"] = "";
+
+				int coveredBases = 0;
+				int currentExonStart = 0;
+				std::vector<std::pair<int, int>> exons;
+				int offset_added_bases = 0;
+				std::map<int, int> translation_coordinates_beforeExons_toAfterExons;
+				while(coveredBases < (int)nucleotideSequnce.length())
+				{
+					int max_exon_length_in_AA = (nucleotideSequnce.length() - currentExonStart)/3;
+					int exon_length = randomNumber(max_exon_length_in_AA) * 3;
+					int exon_stop_pos = currentExonStart + exon_length - 1;
+					assert(exon_stop_pos < (int)nucleotideSequnce.length());
+					assert(exon_stop_pos >= ((int)currentExonStart - 1));
+
+
+					for(int pI = currentExonStart; pI <= exon_stop_pos; pI++)
+					{
+						translation_coordinates_beforeExons_toAfterExons[pI] = offset_added_bases+pI;
+					}
+					exons.push_back(std::make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+					// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
+
+					if(currentExonStart <= exon_stop_pos)
+					{
+						referenceGenome.at("chr").append(nucleotideSequnce.substr(currentExonStart, exon_stop_pos - currentExonStart + 1));
+					}
+
+					coveredBases = (exon_stop_pos+1);
+					currentExonStart = exon_stop_pos + 1;
+
+					int random_add_length = randomNumber(20);
+					if(random_add_length)
+					{
+						referenceGenome.at("chr").append(generateRandomNucleotideSequence(random_add_length));
+						offset_added_bases += random_add_length;
+					}
+				}
+
+				std::string referenceGenome_plus = referenceGenome.at("chr");
+				if(strand == '-')
+				{
+					referenceGenome["chr"] = seq_reverse_complement(referenceGenome.at("chr"));
+				}
+
+
+				std::vector<transcriptExon> transcript_exons;
+				for(auto e : exons)
+				{
+					transcriptExon thisExon;
+					if(e.first <= e.second)
+					{
+						thisExon.valid = true;
+						thisExon.firstPos = e.first;
+						thisExon.lastPos = e.second;
+					}
+					transcript_exons.push_back(thisExon);
+				}
+
+
+
+				if(strand == '-')
+				{
+					for(transcriptExon& e : transcript_exons)
+					{
+						if(e.valid)
+						{
+							e.firstPos = referenceGenome["chr"].length() - e.firstPos - 1;
+							e.lastPos = referenceGenome["chr"].length() - e.lastPos - 1;
+							assert(e.firstPos >= e.lastPos);
+							int third = e.firstPos;
+							e.firstPos = e.lastPos;
+							e.lastPos = third;
+						}
+					}
+				}
+
+				transcript oneTranscript;
+				oneTranscript.chromosomeID = "chr";
+				oneTranscript.geneName = "testGene";
+				oneTranscript.strand = strand;
+				oneTranscript.exons = transcript_exons;
+
+				std::vector<transcript> transcripts = {oneTranscript};
+
+				std::map<std::string, std::map<int, variantFromVCF>> variants;
+
+				size_t n_substitutions = 0;
+				size_t n_INs = 0;
+				size_t n_DELs = 0;
+
+				for(unsigned int pI = 0; pI < referenceGenome_plus.length(); pI++)
+				{
+					if(randomDouble() < 0.02)
+					{
+						variantFromVCF vv;
+
+						vv.chromosomeID = "chr";
+						vv.position = pI;
+						vv.referenceString = referenceGenome_plus.substr(vv.position, 1);
+
+						std::string variantAllele;
+
+						if(randomDouble() <= 0.5)
+						{
+							if(randomDouble() <= 0.5)
+							{
+								variantAllele = "-";
+								n_DELs++;
+							}
+							else
+							{
+								variantAllele = vv.referenceString;
+								variantAllele.push_back(randomNucleotide());
+								vv.referenceString.push_back('-');
+								n_INs++;
+							}
+						}
+						else
+						{
+							char newAllele;
+							do {
+								newAllele = randomNucleotide();
+							} while(newAllele == vv.referenceString.at(0));
+							variantAllele.push_back(newAllele);
+							n_substitutions++;
+						}
+
+						assert(vv.referenceString.length() == variantAllele.length());
+						assert(variantAllele != vv.referenceString);
+						if(randomDouble() < 0.2)
+						{
+							vv.sampleAlleles = std::vector<std::string>({variantAllele, variantAllele});
+							vv.sampleAlleles_interesting = {true, true};
+						}
+						else
+						{
+							vv.sampleAlleles = std::vector<std::string>({vv.referenceString, variantAllele});
+							vv.sampleAlleles_interesting = {false, true};
+						}
+
+						if(strand == '-')
+						{
+							vv.position = referenceGenome_plus.length() - vv.position - countCharacters_noGaps(vv.referenceString);
+							vv.referenceString = seq_reverse_complement(vv.referenceString);
+
+							for(std::string& a : vv.sampleAlleles)
+							{
+								a = seq_reverse_complement(a);
+							}
+						}
+
+
+						variants["chr"][vv.position] = vv;
+
+					}
+				}
+				std::cout << "Strand " << strand << ", nucleotide sequence length " << nucleotideSequnce.length() << "; generated " << n_substitutions << " substitutions " << n_INs << " insertions; " << n_DELs << " deletions.\n" << std::flush;
+
+				checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
+
+				compare_proper_diff_peptides(threads, referenceGenome, transcripts, variants, AA_mers);
+			}
+		}
+	}
+}
 void test_proper_improper_enumeration(int threads)
 {
 	for(unsigned int iteration = 0; iteration < 100; iteration++)
 	{
-		std::cout << "Testing iteration " << iteration << "\n" << std::flush;
+		std::cout << "Testing proper/improper iteration " << iteration << "\n" << std::flush;
 
 		std::string AAsequence = generateRandomAASequence(50);
 		std::string nucleotideSequnce = translateAASequence2Codons(AAsequence);
@@ -703,7 +885,7 @@ void randomTests_withVariants_2(int threads)
 
 						std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 						std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-						enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+						enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations, 0, 0);
 
 						for(auto k : AA_mers)
 						{
@@ -889,7 +1071,7 @@ void randomTests(int threads)
 
 				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 				std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-				enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+				enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations, 0, 0);
 
 				for(auto k : AA_mers)
 				{
@@ -996,7 +1178,7 @@ void randomTests(int threads)
 
 					std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 					std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
-					enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations);
+					enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, AA_mers, p_per_epitope, p_per_epitope_locations, 0, 0);
 					compare_proper_improper_peptides(threads, referenceGenome, transcripts, variants, AA_mers);
 
 					for(auto k : AA_mers)
@@ -1177,6 +1359,268 @@ void some_simple_tests(int threads)
 	}
 }
 
+void compare_proper_diff_peptides(int threads, const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths)
+{
+	std::map<int, std::map<std::string, double>> peptides_proper;
+	std::map<int, std::map<std::string, double>> peptides_diff;
+
+	{
+		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
+
+		enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations, 0, 0);
+
+		for(auto haplotypesOneLength : p_per_epitope)
+		{
+			peptides_proper[haplotypesOneLength.first].count("");
+			for(auto fragment : haplotypesOneLength.second)
+			{
+				peptides_proper[haplotypesOneLength.first][fragment.first] = fragment.second.first;
+			}
+		}
+	}
+
+	{
+		for(auto k : haplotypeLengths)
+		{
+			peptides_diff[k] = enumeratePeptideHaplotypes_baseLine(threads, k, referenceGenome, transcripts, variants);
+		}
+	}
+
+	assert(peptides_proper.size() == peptides_diff.size());
+
+	for(auto l_and_sets : peptides_proper)
+	{
+		std::set<std::string> set_proper;
+		std::set<std::string> set_improper;
+		for(auto p : peptides_proper.at(l_and_sets.first))
+		{
+			set_proper.insert(p.first);
+		}
+		for(auto p : peptides_diff.at(l_and_sets.first))
+		{
+			set_improper.insert(p.first);
+		}
+
+		assert_AA_sets_identical(set_proper, set_improper);
+		//std::cerr << "set_proper.size() for k = " << l_and_sets.first << ": " << set_proper.size() << "\n" << std::flush;
+		for(std::string peptide : set_improper)
+		{
+			double p_proper = peptides_proper.at(l_and_sets.first).at(peptide);
+			double p_improper = peptides_diff.at(l_and_sets.first).at(peptide);
+			assert(abs(p_proper - p_improper) < 1e-4);
+		}
+	}
+
+}
+
+void test_naive_diff_epitopes_identical()
+{
+	for(unsigned int iteration = 0; iteration < 1000; iteration++)
+	{
+		std::cout << "Testing epitope enumeration iteration " << iteration << "\n" << std::flush;
+
+		std::string AAsequence = generateRandomAASequence(50);
+		std::string nucleotideSequnce = translateAASequence2Codons(AAsequence);
+
+		std::set<int> AA_mers = {8, 12};
+		std::set<int> extensionLength = {0, 2};
+		for(char strand : {'+', '-'})
+		{
+			{
+				std::map<std::string, std::string> referenceGenome;
+				referenceGenome["chr"] = "";
+
+				int coveredBases = 0;
+				int currentExonStart = 0;
+				std::vector<std::pair<int, int>> exons;
+				int offset_added_bases = 0;
+				std::map<int, int> translation_coordinates_beforeExons_toAfterExons;
+				while(coveredBases < (int)nucleotideSequnce.length())
+				{
+					int max_exon_length_in_AA = (nucleotideSequnce.length() - currentExonStart)/3;
+					int exon_length = randomNumber(max_exon_length_in_AA) * 3;
+					int exon_stop_pos = currentExonStart + exon_length - 1;
+					assert(exon_stop_pos < (int)nucleotideSequnce.length());
+					assert(exon_stop_pos >= ((int)currentExonStart - 1));
+
+
+					for(int pI = currentExonStart; pI <= exon_stop_pos; pI++)
+					{
+						translation_coordinates_beforeExons_toAfterExons[pI] = offset_added_bases+pI;
+					}
+					exons.push_back(std::make_pair(offset_added_bases+currentExonStart, offset_added_bases+exon_stop_pos));
+					// std::cerr << "Exon " << currentExonStart << " " << exon_stop_pos << "\n" << std::flush;
+
+					if(currentExonStart <= exon_stop_pos)
+					{
+						referenceGenome.at("chr").append(nucleotideSequnce.substr(currentExonStart, exon_stop_pos - currentExonStart + 1));
+					}
+
+					coveredBases = (exon_stop_pos+1);
+					currentExonStart = exon_stop_pos + 1;
+
+					int random_add_length = randomNumber(20);
+					if(random_add_length)
+					{
+						referenceGenome.at("chr").append(generateRandomNucleotideSequence(random_add_length));
+						offset_added_bases += random_add_length;
+					}
+				}
+
+				std::string referenceGenome_plus = referenceGenome.at("chr");
+				if(strand == '-')
+				{
+					referenceGenome["chr"] = seq_reverse_complement(referenceGenome.at("chr"));
+				}
+
+
+				std::vector<transcriptExon> transcript_exons;
+				for(auto e : exons)
+				{
+					transcriptExon thisExon;
+					if(e.first <= e.second)
+					{
+						thisExon.valid = true;
+						thisExon.firstPos = e.first;
+						thisExon.lastPos = e.second;
+					}
+					transcript_exons.push_back(thisExon);
+				}
+
+
+
+				if(strand == '-')
+				{
+					for(transcriptExon& e : transcript_exons)
+					{
+						if(e.valid)
+						{
+							e.firstPos = referenceGenome["chr"].length() - e.firstPos - 1;
+							e.lastPos = referenceGenome["chr"].length() - e.lastPos - 1;
+							assert(e.firstPos >= e.lastPos);
+							int third = e.firstPos;
+							e.firstPos = e.lastPos;
+							e.lastPos = third;
+						}
+					}
+				}
+
+				transcript oneTranscript;
+				oneTranscript.chromosomeID = "chr";
+				oneTranscript.geneName = "testGene";
+				oneTranscript.strand = strand;
+				oneTranscript.exons = transcript_exons;
+
+				std::vector<transcript> transcripts = {oneTranscript};
+
+				std::map<std::string, std::map<int, variantFromVCF>> variants;
+				std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
+
+				size_t n_substitutions = 0;
+				size_t n_INs = 0;
+				size_t n_DELs = 0;
+
+				for(unsigned int pI = 0; pI < referenceGenome_plus.length(); pI++)
+				{
+					if(randomDouble() < 0.02)
+					{
+						variantFromVCF vv;
+
+						vv.chromosomeID = "chr";
+						vv.position = pI;
+						vv.referenceString = referenceGenome_plus.substr(vv.position, 1);
+
+						std::string variantAllele;
+
+						if(randomDouble() <= 0.5)
+						{
+							if(randomDouble() <= 0.5)
+							{
+								variantAllele = "-";
+								n_DELs++;
+							}
+							else
+							{
+								variantAllele = vv.referenceString;
+								variantAllele.push_back(randomNucleotide());
+								vv.referenceString.push_back('-');
+								n_INs++;
+							}
+						}
+						else
+						{
+							char newAllele;
+							do {
+								newAllele = randomNucleotide();
+							} while(newAllele == vv.referenceString.at(0));
+							variantAllele.push_back(newAllele);
+							n_substitutions++;
+						}
+
+						assert(vv.referenceString.length() == variantAllele.length());
+						assert(variantAllele != vv.referenceString);
+						if(randomDouble() < 0.2)
+						{
+							vv.sampleAlleles = std::vector<std::string>({variantAllele, variantAllele});
+							vv.sampleAlleles_interesting = {true, true};
+						}
+						else
+						{
+							vv.sampleAlleles = std::vector<std::string>({vv.referenceString, variantAllele});
+							vv.sampleAlleles_interesting = {false, true};
+						}
+
+						if(strand == '-')
+						{
+							vv.position = referenceGenome_plus.length() - vv.position - countCharacters_noGaps(vv.referenceString);
+							vv.referenceString = seq_reverse_complement(vv.referenceString);
+
+							for(std::string& a : vv.sampleAlleles)
+							{
+								a = seq_reverse_complement(a);
+							}
+						}
+
+						if(randomDouble() <= 0.5)
+						{
+							variants["chr"][vv.position] = vv;
+						}
+						else
+						{
+							variants_tumour["chr"][vv.position] = vv;
+						}
+
+					}
+				}
+				std::cout << "Strand " << strand << ", nucleotide sequence length " << nucleotideSequnce.length() << "; generated " << variants["chr"].size() << " normal variants and " << variants_tumour["chr"].size() << " tumour variants.\n" << std::flush;
+
+				checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
+				checkVariantsConsistentWithReferenceGenome(variants_tumour, referenceGenome);
+
+				for(auto coreEpitopeLength : AA_mers)
+				{
+					for(auto additionalBuffer : extensionLength)
+					{
+						std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope_normal;
+						enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts, variants, {coreEpitopeLength}, p_per_epitope_normal);
+						std::set<std::string> differences = identifyDifferences_naive(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
+						std::set<std::string> differences_faster = identifyDifferences_faster(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
+						for(auto epitope : differences)
+						{
+							std::string core_epitope = epitope.substr(additionalBuffer, epitope.length() - 2 * additionalBuffer);
+							assert((int)core_epitope.length() == coreEpitopeLength);
+							assert(p_per_epitope_normal.at(coreEpitopeLength).count(epitope) == 0);
+						}
+						assert_AA_sets_identical(differences, differences_faster);
+						std::cerr << differences_faster.size() << "\n" << std::flush;
+					}
+				}
+			}
+		}
+	}
+}
+
 void compare_proper_improper_peptides(int threads, const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths)
 {
 	std::map<int, std::map<std::string, double>> peptides_proper;
@@ -1202,7 +1646,7 @@ void compare_proper_improper_peptides(int threads, const std::map<std::string, s
 		std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
 		std::map<int, std::map<std::string, std::map<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>, double>>> p_per_epitope_locations;
 
-		enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations);
+		enumeratePeptideHaplotypes(threads, referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, p_per_epitope_locations, 0, 0);
 
 		for(auto haplotypesOneLength : p_per_epitope)
 		{
@@ -1276,6 +1720,7 @@ void print_positions_and_interesting_sets(const std::string& peptide, std::set<s
 	}
 	std::cout << std::flush;
 }
+
 void assert_AA_sets_identical(const std::set<std::string>& s1, const std::set<std::string>& s2)
 {
 	if(s1 != s2)

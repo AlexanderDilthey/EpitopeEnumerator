@@ -22,6 +22,7 @@
 #include "enumerateEpitopes_haplotypePairs.h"
 #include "enumerateEpitopes_noHaplotypePairs.h"
 #include "tests.h"
+#include "findEpitopeDifferences.h"
 
 using namespace std;
 
@@ -44,6 +45,10 @@ int main(int argc, char *argv[]) {
 	assert(arguments.count("action"));
 	if(arguments.at("action") == "testing")
 	{
+		test_naive_diff_epitopes_identical();
+		assert(4 == 11);
+
+		test_proper_diff_enumeration(1);
 		some_simple_tests(4);
 		test_proper_improper_enumeration(4);
 		randomTests_withVariants_2(1);
@@ -110,42 +115,9 @@ int main(int argc, char *argv[]) {
 		{
 			int coreEpitopeLength = sL.first;
 			int additionalBuffer = sL.second;
+			std::set<std::string> differences = identifyDifferences_naive(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
 
-			std::set<int> epitopeLengths_tumour;
-			std::set<int> epitopeLengths_normal;
-
-			epitopeLengths_tumour.insert(coreEpitopeLength + 2 * additionalBuffer);
-			epitopeLengths_normal.insert(coreEpitopeLength);
-
-			std::map<int, std::set<std::string>> epitopes_normal = enumeratePeptideHaplotypes_properFrequencies_easy(1, referenceGenome, transcripts, variants, epitopeLengths_normal, false);
-			std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_properFrequencies_easy(1, referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true);
-
-			int combinedTumourEpitopeLength = coreEpitopeLength + 2 * additionalBuffer;
-
-			std::cout << "Search for length " << coreEpitopeLength << " + 2x" << additionalBuffer << "\n" << std::flush;
-			assert(epitopes_normal.count(coreEpitopeLength));
-			assert(epitopes_tumour.count(combinedTumourEpitopeLength));
-
-			std::cout << "\t" << epitopes_normal.at(coreEpitopeLength).size() << " normal epitopes.\n";
-			std::cout << "\t" << epitopes_tumour.at(combinedTumourEpitopeLength).size() << " tumour epitopes.\n" << std::flush;
-
-			for(const std::string& extendedTumourEpitope : epitopes_tumour.at(combinedTumourEpitopeLength))
-			{
-				std::string coreEpitope = extendedTumourEpitope.substr(additionalBuffer, coreEpitopeLength);
-				assert((int)coreEpitope.length() == coreEpitopeLength);
-
-				if(epitopes_normal.at(coreEpitopeLength).count(coreEpitope) == 0)
-				{
-					epitopes_tumour_exclusive_and_their_extended_haplotypes[sL][coreEpitope].insert(extendedTumourEpitope);
-				}
-			}
-
-			size_t found_tumour_only_epitopes = 0;
-			if(epitopes_tumour_exclusive_and_their_extended_haplotypes.count(sL))
-			{
-				found_tumour_only_epitopes = epitopes_tumour_exclusive_and_their_extended_haplotypes.at(sL).size();
-			}
-			std::cout << "\t" << found_tumour_only_epitopes << " tumour-only epitopes.\n" << std::flush;
+			std::cout << "\t" << differences.size() << " tumour-only epitopes.\n" << std::flush;
 		}
 
 		/*

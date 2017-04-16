@@ -12,7 +12,7 @@
 #include "Util.h"
 
 
-std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequencies_easy(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
+std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequencies_easy(const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
 {
 	std::map<int, std::set<std::string>> forReturn;
 
@@ -44,7 +44,7 @@ std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequenc
 	return forReturn;
 }
 
-void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcript& transcript, const std::map<std::string, std::string> referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
+void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcript& transcript, const std::map<std::string, std::string>& referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
 {
 	for(auto k_and_stored_fragments : p_per_epitope_forRet)
 	{
@@ -489,7 +489,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 	}
 }
 
-void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::string, std::string> referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
+void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::string, std::string>& referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
 {
 	checkVariantsConsistentWithReferenceGenome(variants_plus, referenceGenome_plus); // paranoid
 
@@ -554,7 +554,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::str
 	}
 }
 
-void enumeratePeptideHaplotypes_improperFrequencies(const std::map<std::string, std::string> referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
+void enumeratePeptideHaplotypes_improperFrequencies(const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
 {
 	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);
 	std::map<std::string, std::map<int, variantFromVCF>> variants_minus = getMinusStrandVariants(variants, referenceGenome_minus);
