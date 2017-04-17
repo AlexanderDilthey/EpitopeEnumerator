@@ -372,7 +372,7 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_oneTranscript(
 	return forReturn_thisTranscript;
 }
 
-std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_plus(int k, const std::map<std::string, std::string>& referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus)
+std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_plus(int k, const std::map<std::string, std::string>& referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool fullPairs)
 {
 	std::map<std::string, double> forReturn;
 	checkVariantsConsistentWithReferenceGenome(variants_plus, referenceGenome_plus);
@@ -387,7 +387,16 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_plus(int k, co
 			continue;
 
 		// the oneTranscript_* maps are clear'ed within enumeratePeptideHaplotypes_oneTranscript
-		std::map<std::string, double> epitopes_this_transcript = enumeratePeptideHaplotypes_baseLine_oneTranscript(k, transcript, referenceGenome_plus, variants_plus);
+
+		std::map<std::string, double> epitopes_this_transcript;
+		if(fullPairs)
+		{
+			epitopes_this_transcript = enumeratePeptideHaplotypes_baseLine_oneTranscript(k, transcript, referenceGenome_plus, variants_plus);
+		}
+		else
+		{
+			epitopes_this_transcript = enumeratePeptideHaplotypes_baseLine_oneTranscript_improperPairs(k, transcript, referenceGenome_plus, variants_plus);
+		}
 
 		for(auto epitope : epitopes_this_transcript)
 		{
@@ -410,7 +419,356 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_plus(int k, co
 	return forReturn;
 }
 
-std::map<std::string, double> enumeratePeptideHaplotypes_baseLine(int threads, int k, const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants)
+std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_oneTranscript_improperPairs(int k, const transcript& transcript, const std::map<std::string, std::string>& referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus)
+{
+	std::map<std::string, double> forReturn;
+
+	int peptideHaplotypeLength = k;
+
+	/*
+	auto addToFragmentsFromOneExtension = [](std::map<fragmentT, double>& fragmentsStore, const std::set<fragmentT>& fragmentsThisExtension, double p) -> void {
+		for(const fragmentT& fragmentFromExtension : fragmentsThisExtension)
+		{
+			if(fragmentsStore.count(fragmentFromExtension) == 0)
+			{
+				fragmentsStore[fragmentFromExtension] = 0;
+			}
+			fragmentsStore.at(fragmentFromExtension) += p;
+		}
+	};
+	using runningHaplotypePairKey = std::pair<runningHaplotypeKey, runningHaplotypeKey>;
+
+	 */
+	using runningHaplotypeKey = std::tuple<std::string, std::string>;
+
+	class runningHaplotype {
+	public:
+		std::string AApart;
+
+		std::string nucleotidePart;
+		int nucleotidePart_nonGap;
+
+		bool have_been_stopped;
+
+		runningHaplotypeKey getKey()
+		{
+			return make_tuple(
+					AApart,
+					nucleotidePart
+			);
+		}
+
+		runningHaplotype()
+		{
+			nucleotidePart_nonGap = 0;
+			have_been_stopped = false;
+		}
+
+		void extendWithNucleotides(const std::string& nucleotides)
+		{
+			assert(! have_been_stopped);
+			assert((int)countCharacters_noGaps(nucleotidePart) == nucleotidePart_nonGap); // paranoid
+
+			nucleotidePart.insert(nucleotidePart.end(), nucleotides.begin(), nucleotides.end());
+
+			int added_nonGaps = countCharacters_noGaps(nucleotides);
+			nucleotidePart_nonGap += added_nonGaps;
+
+			while(nucleotidePart_nonGap >= 3)
+			{
+				// find the next codon, its coordinates, and whether it's interesting
+				std::string codon; codon.reserve(3);
+				int consumedIndex_inNucleotidePart = 0;
+				while(codon.length() < 3)
+				{
+					unsigned char charForConsumption = nucleotidePart.at(consumedIndex_inNucleotidePart);
+					consumedIndex_inNucleotidePart++;
+					if((charForConsumption != '-') && (charForConsumption != '_'))
+					{
+						codon.push_back(charForConsumption);
+					}
+
+					assert(consumedIndex_inNucleotidePart <= (int)nucleotidePart.size());
+				}
+
+
+				// translate codon -> AA part
+				AApart.append(translateCodon2AA(codon));
+
+				// remove the consumed components
+				bool haveRemainder = (consumedIndex_inNucleotidePart < (int)nucleotidePart.size());
+				nucleotidePart = haveRemainder ? nucleotidePart.substr(consumedIndex_inNucleotidePart) : "";
+				nucleotidePart_nonGap -= 3;
+
+				assert((int)countCharacters_noGaps(nucleotidePart) == nucleotidePart_nonGap); // paranoid
+			}
+		}
+
+		void shortenAA(int peptideHaplotypeLength, std::map<std::string, double>& fragmentsStore, unsigned int sampleHaplotypes_size, int openedHaplotypes, bool have_deleted_haplotype)
+		{
+			size_t position_stop = AApart.find("!");
+			if(position_stop != std::string::npos)
+			{
+				AApart = AApart.substr(0, position_stop);
+				assert(AApart.find("!") == std::string::npos);
+			}
+
+			while((int)AApart.length() >= peptideHaplotypeLength)
+			{
+				std::string extract_AA = AApart.substr(0, peptideHaplotypeLength);
+
+				AApart = AApart.substr(1);
+
+				double p;
+				if((sampleHaplotypes_size <= 2) && (! have_deleted_haplotype))
+				{
+					p = 1;
+				}
+				else
+				{
+					if(have_deleted_haplotype && (openedHaplotypes <= 2))
+					{
+						assert(sampleHaplotypes_size <= 2);
+						p = 1;
+					}
+					else
+					{
+						p = -1;
+					}
+				}
+				assert((int)extract_AA.length() == peptideHaplotypeLength);
+
+				bool doStore = true;
+
+
+				if(doStore)
+				{
+					if(fragmentsStore.count(extract_AA))
+					{
+						if(p > fragmentsStore.at(extract_AA))
+						{
+							fragmentsStore.at(extract_AA) = p;
+						}
+					}
+					else
+					{
+						fragmentsStore[extract_AA] = p;
+					}
+				}
+			}
+
+			if(position_stop != std::string::npos)
+			{
+				have_been_stopped = true;
+			}
+
+		}
+	};
+
+	assert(transcript.strand == '+');
+	std::string chromosomeID = transcript.chromosomeID;
+	assert(referenceGenome_plus.count(chromosomeID));
+
+	int exons = transcript.exons.size();
+
+	// make sure that the exons go from left to right in a non-overlapping fashion
+	int lastValidExonI = -1;
+	for(int exonI = 0; exonI < exons; exonI++)
+	{
+		if(transcript.exons.at(exonI).valid)
+		{
+			assert(transcript.exons.at(exonI).firstPos <= transcript.exons.at(exonI).lastPos);
+			if(lastValidExonI != -1)
+			{
+				assert(transcript.exons.at(lastValidExonI).lastPos < transcript.exons.at(exonI).firstPos);
+			}
+			lastValidExonI = exonI;
+		}
+	}
+
+	runningHaplotype referenceHaplotype;
+	runningHaplotype firstHaplotype;
+	std::vector<runningHaplotype> sampleHaplotypes = {firstHaplotype};
+	size_t openedHaplotypes = 1;
+	bool have_deleted_haplotype = false;
+
+	auto doExtension = [&](std::string referenceSequence, std::vector<std::string> sampleAlleles) -> void {
+		assert(sampleAlleles.size() == 2);
+		assert(sampleAlleles.at(0).length() == referenceSequence.length());
+		assert(sampleAlleles.at(1).length() == referenceSequence.length());
+
+		std::vector<bool> referenceSequence_interesting;
+		referenceSequence_interesting.resize(referenceSequence.length(), false);
+		referenceHaplotype.extendWithNucleotides(referenceSequence);
+
+		/*
+		std::vector<std::vector<bool>> sampleAlleles_perCharacter_interesting;
+		sampleAlleles_perCharacter_interesting.reserve(sampleAlleles.size());
+		for(bool oneSampleAllele_isInteresting : sampleAlleles_interesting)
+		{
+			std::vector<bool> oneSampleAllele_interesting;
+			oneSampleAllele_interesting.resize(referenceSequence.length(), oneSampleAllele_isInteresting);
+			sampleAlleles_perCharacter_interesting.push_back(oneSampleAllele_interesting);
+		}
+		*/
+
+		bool heterozygous = (sampleAlleles.at(0) != sampleAlleles.at(1));
+		size_t existingSampleHaplotypes_maxI = sampleHaplotypes.size();
+		if(! heterozygous)
+		{
+			assert(sampleAlleles.at(0) == sampleAlleles.at(1));
+			for(unsigned int existingHaplotypeI = 0; existingHaplotypeI < existingSampleHaplotypes_maxI; existingHaplotypeI++)
+			{
+				sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0));
+			}
+		}
+		else
+		{
+			for(unsigned int existingHaplotypeI = 0; existingHaplotypeI < existingSampleHaplotypes_maxI; existingHaplotypeI++)
+			{
+				runningHaplotype preExtensionHaplotype = sampleHaplotypes.at(existingHaplotypeI);
+
+				sampleHaplotypes.at(existingHaplotypeI).extendWithNucleotides(sampleAlleles.at(0));
+
+				sampleHaplotypes.push_back(preExtensionHaplotype);
+				sampleHaplotypes.back().extendWithNucleotides(sampleAlleles.at(1));
+			}
+
+			openedHaplotypes *= 2;
+		}
+
+		/*
+		if(!(sampleHaplotypes.size() <= openedHaplotypes))
+		{
+			std::cerr << "sampleHaplotypes.size()" << ": " << sampleHaplotypes.size() << "\n";
+			std::cerr << "openedHaplotypes" << ": " << openedHaplotypes << "\n";
+			std::cerr << std::flush;
+		}
+		*/
+		assert(sampleHaplotypes.size() <= openedHaplotypes);
+
+
+		//if(sampleHaplotypes.size() > 1)
+		//	std::cout << "sampleHaplotypes.size()" << ": " << sampleHaplotypes.size() << "\n" << std::flush;
+
+
+		std::map<fragmentT, double> newFragments_thisExtension;
+		for(runningHaplotype& h : sampleHaplotypes)
+		{
+			h.shortenAA(peptideHaplotypeLength, forReturn, sampleHaplotypes.size(), openedHaplotypes, have_deleted_haplotype);
+		}
+
+		std::set<runningHaplotypeKey> haveHaplotypes;
+		std::set<unsigned int> delete_indices;
+		for(unsigned int runningHaplotypeI = 0; runningHaplotypeI < sampleHaplotypes.size(); runningHaplotypeI++)
+		{
+			runningHaplotype& h = sampleHaplotypes.at(runningHaplotypeI);
+			if(h.have_been_stopped)
+			{
+				delete_indices.insert(runningHaplotypeI);
+				have_deleted_haplotype = true;
+			}
+			else
+			{
+				runningHaplotypeKey hKey = h.getKey();
+				if(haveHaplotypes.count(hKey))
+				{
+					delete_indices.insert(runningHaplotypeI);
+				}
+				else
+				{
+					haveHaplotypes.insert(hKey);
+				}
+			}
+
+		}
+
+		if(sampleHaplotypes.size() > 1)
+		{
+			/*
+			std::cout << "sampleHaplotypes.size()" << ": " << sampleHaplotypes.size() << "\n" << std::flush;
+			std::cout << "haveHaplotypes.size()" << ": " <<  haveHaplotypes.size() << "\n";
+			std::cout << std::flush;
+			*/
+		}
+		unsigned int sampleHaplotypes_size_beforeDeletion = sampleHaplotypes.size();
+
+		if(delete_indices.size())
+		{
+			//std::cout << "Delete " << delete_indices.size() << "\n" << std::flush;
+		}
+		if(delete_indices.size() >= 1)
+		{
+			//td::cout << "Size before: " << sampleHaplotypes.size() << "\n" << std::flush;
+
+			unsigned int first = *(delete_indices.begin());
+			unsigned int last = *(delete_indices.rbegin());
+			assert(first <= last);
+			int lastIndexDeleted = -1;
+			for(std::set<unsigned int>::reverse_iterator deleteIndexIt = delete_indices.rbegin(); deleteIndexIt != delete_indices.rend(); deleteIndexIt++)
+			{
+				unsigned int indexToDelete = *deleteIndexIt;
+				//std::cout << "\t\tNow delete " << indexToDelete << ", size " << sampleHaplotypes.size() << "\n" << std::flush;
+				assert((lastIndexDeleted == -1) || ((int)indexToDelete < lastIndexDeleted));
+				sampleHaplotypes.erase(sampleHaplotypes.begin() + indexToDelete);
+				lastIndexDeleted = (int)indexToDelete;
+			}
+
+			//std::cout << "Size after: " << sampleHaplotypes.size() << "\n" << std::flush;
+
+		}
+
+		if(!(sampleHaplotypes.size() == (sampleHaplotypes_size_beforeDeletion - delete_indices.size())))
+		{
+			std::cerr << "sampleHaplotypes.size()" << ": " << sampleHaplotypes.size() << "\n";
+			std::cerr << "delete_indices.size()" << ": " << delete_indices.size() << "\n";
+			std::cerr << "sampleHaplotypes_size_beforeDeletion" << ": " << sampleHaplotypes_size_beforeDeletion << "\n";
+			std::cerr << std::flush;
+		}
+
+		assert(sampleHaplotypes.size() == (sampleHaplotypes_size_beforeDeletion - delete_indices.size()));
+	};
+
+	//std::string collectedReferenceSequence;
+	//std::vector<> runningSampleHaplotypes;
+
+	for(int exonI = 0; exonI < exons; exonI++)
+	{
+		const transcriptExon& exon = transcript.exons.at(exonI);
+		if(exon.valid == false)
+			continue;
+
+		for(unsigned int referencePos = exon.firstPos; referencePos <= exon.lastPos; referencePos++)
+		{
+			if(sampleHaplotypes.size() >= 1)
+			{
+				if(variants_plus.count(chromosomeID) && variants_plus.at(chromosomeID).count(referencePos))
+				{
+					std::tuple<std::string, std::vector<int>, std::vector<bool>, std::vector<std::string>, std::vector<std::vector<int>>, std::vector<std::vector<bool>>> reference_and_variantAlleles = get_reference_and_variantAlleles(variants_plus.at(chromosomeID).at(referencePos), referencePos, exon.lastPos);
+
+					doExtension(std::get<0>(reference_and_variantAlleles), std::get<3>(reference_and_variantAlleles));
+
+					int reference_extension_length_noGaps = countCharacters_noGaps(std::get<0>(reference_and_variantAlleles));
+					referencePos += (reference_extension_length_noGaps - 1);
+				}
+				else
+				{
+					//std::cerr << "\tnV\n" << std::flush;
+					std::string referenceCharacter = referenceGenome_plus.at(chromosomeID).substr(referencePos, 1);
+					std::vector<std::string> extendWith = {referenceCharacter, referenceCharacter};
+					std::vector<int> referenceAllele_coordinates = {(int)referencePos};
+					std::vector<std::vector<int>> sampleAlleles_refCoordinates = {{(int)referencePos},{(int)referencePos}};
+					std::vector<std::vector<bool>> extendWith_interesting = {std::vector<bool>({false}), std::vector<bool>({false})};
+					doExtension(referenceCharacter, extendWith);
+				}
+			}
+		}
+	}
+
+	return forReturn;
+}
+
+std::map<std::string, double> enumeratePeptideHaplotypes_baseLine(int threads, int k, const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, bool fullPairs)
 {
 	assert(threads == 1);
 
@@ -427,8 +785,8 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine(int threads, i
 
 	checkTranscriptsTranslate(transcripts_plus, referenceGenome);
 
-	std::map<std::string, double> forReturn = enumeratePeptideHaplotypes_baseLine_plus(k, referenceGenome, transcripts_plus, variants);
-	std::map<std::string, double> minus_epitopes = enumeratePeptideHaplotypes_baseLine_plus(k, referenceGenome_minus, transcripts_minus, variants_minus);
+	std::map<std::string, double> forReturn = enumeratePeptideHaplotypes_baseLine_plus(k, referenceGenome, transcripts_plus, variants, fullPairs);
+	std::map<std::string, double> minus_epitopes = enumeratePeptideHaplotypes_baseLine_plus(k, referenceGenome_minus, transcripts_minus, variants_minus, fullPairs);
 
 	for(auto epitope : minus_epitopes)
 	{

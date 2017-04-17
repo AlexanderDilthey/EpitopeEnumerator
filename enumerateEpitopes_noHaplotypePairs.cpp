@@ -12,12 +12,12 @@
 #include "Util.h"
 
 
-std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequencies_easy(const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes)
+std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequencies_easy(const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, bool limitToCertainEpitopes, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	std::map<int, std::set<std::string>> forReturn;
 
 	std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
-	enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope);
+	enumeratePeptideHaplotypes_improperFrequencies(referenceGenome, transcripts, variants, haplotypeLengths, p_per_epitope, ignoreCoreEpitopes, corePadding);
 
 	for(auto haplotypesOneLength : p_per_epitope)
 	{
@@ -44,7 +44,7 @@ std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequenc
 	return forReturn;
 }
 
-void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcript& transcript, const std::map<std::string, std::string>& referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
+void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcript& transcript, const std::map<std::string, std::string>& referenceGenome_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	for(auto k_and_stored_fragments : p_per_epitope_forRet)
 	{
@@ -219,7 +219,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 				}
 			}
 
-			void shortenAA(int peptideHaplotypeLength, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& fragmentsStore, unsigned int sampleHaplotypes_size, int openedHaplotypes, bool have_deleted_haplotype)
+			void shortenAA(int peptideHaplotypeLength, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& fragmentsStore, unsigned int sampleHaplotypes_size, int openedHaplotypes, bool have_deleted_haplotype, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 			{
 				size_t position_stop = AApart.find("!");
 				if(position_stop != std::string::npos)
@@ -261,18 +261,36 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 						}
 					}
 					assert((int)extract_AA.length() == peptideHaplotypeLength);
-					if(fragmentsStore.at(peptideHaplotypeLength).count(extract_AA))
+
+					bool doStore = true;
+
+					if(ignoreCoreEpitopes != 0)
 					{
-						if(p > fragmentsStore.at(peptideHaplotypeLength)[extract_AA].first)
+						assert(corePadding >= 0);
+						assert(extract_AA.length() > 2 * corePadding);
+						std::string coreEpitope = extract_AA.substr(corePadding, extract_AA.length() - 2 * corePadding);
+						assert(coreEpitope.length() > 0);
+						if(ignoreCoreEpitopes->count(coreEpitope))
+						{
+							doStore = false;
+						}
+					}
+
+					if(doStore)
+					{
+						if(fragmentsStore.at(peptideHaplotypeLength).count(extract_AA))
+						{
+							if(p > fragmentsStore.at(peptideHaplotypeLength)[extract_AA].first)
+							{
+								fragmentsStore.at(peptideHaplotypeLength)[extract_AA].first = p;
+							}
+						}
+						else
 						{
 							fragmentsStore.at(peptideHaplotypeLength)[extract_AA].first = p;
 						}
+						fragmentsStore.at(peptideHaplotypeLength).at(extract_AA).second.insert(std::make_pair(extract_positions, extract_interesting));
 					}
-					else
-					{
-						fragmentsStore.at(peptideHaplotypeLength)[extract_AA].first = p;
-					}
-					fragmentsStore.at(peptideHaplotypeLength).at(extract_AA).second.insert(std::make_pair(extract_positions, extract_interesting));
 				}
 
 				if(position_stop != std::string::npos)
@@ -377,7 +395,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 			std::map<fragmentT, double> newFragments_thisExtension;
 			for(runningHaplotype& h : sampleHaplotypes)
 			{
-				h.shortenAA(peptideHaplotypeLength, p_per_epitope_forRet, sampleHaplotypes.size(), openedHaplotypes, have_deleted_haplotype);
+				h.shortenAA(peptideHaplotypeLength, p_per_epitope_forRet, sampleHaplotypes.size(), openedHaplotypes, have_deleted_haplotype, ignoreCoreEpitopes, corePadding);
 			}
 
 			std::set<runningHaplotypeKey> haveHaplotypes;
@@ -489,7 +507,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 	}
 }
 
-void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::string, std::string>& referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
+void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::string, std::string>& referenceGenome_plus, const std::vector<transcript>& transcripts_plus, const std::map<std::string, std::map<int, variantFromVCF>>& variants_plus, bool invertPositions, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	checkVariantsConsistentWithReferenceGenome(variants_plus, referenceGenome_plus); // paranoid
 
@@ -511,7 +529,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::str
 		std::cout << "Transcript " << transcriptI << " / " << transcripts_plus.size() << "\n" << std::flush;
 
 		// the oneTranscript_* maps are clear'ed within enumeratePeptideHaplotypes_oneTranscript
-		enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope_forRet);
+		enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope_forRet, ignoreCoreEpitopes, corePadding);
 
 		for(auto k : p_per_epitope_forRet)
 		{
@@ -554,7 +572,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::str
 	}
 }
 
-void enumeratePeptideHaplotypes_improperFrequencies(const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet)
+void enumeratePeptideHaplotypes_improperFrequencies(const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
 	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);
 	std::map<std::string, std::map<int, variantFromVCF>> variants_minus = getMinusStrandVariants(variants, referenceGenome_minus);
@@ -574,6 +592,6 @@ void enumeratePeptideHaplotypes_improperFrequencies(const std::map<std::string, 
 		p_per_epitope_forRet[k].count("");
 	}
 
-	enumeratePeptideHaplotypes_improperFrequencies_plus(referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet);
-	enumeratePeptideHaplotypes_improperFrequencies_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet);
+	enumeratePeptideHaplotypes_improperFrequencies_plus(referenceGenome, transcripts_plus, variants, false, p_per_epitope_forRet, ignoreCoreEpitopes, corePadding);
+	enumeratePeptideHaplotypes_improperFrequencies_plus(referenceGenome_minus, transcripts_minus, variants_minus, true, p_per_epitope_forRet, ignoreCoreEpitopes, corePadding);
 }

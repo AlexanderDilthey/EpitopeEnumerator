@@ -34,7 +34,7 @@ std::set<std::string> identifyDifferences_faster(const std::map<std::string, std
 
 	std::cout << timestamp() << "\t Start baseline enumeration...\n" << std::flush;
 		
-	std::map<std::string, double> epitopes_normal = enumeratePeptideHaplotypes_baseLine(1, coreEpitopeLength, referenceGenome, transcripts, variants_normal);
+	std::map<std::string, double> epitopes_normal = enumeratePeptideHaplotypes_baseLine(1, coreEpitopeLength, referenceGenome, transcripts, variants_normal, false);
 
 	std::set<std::string> ignorePeptides;
 	for(auto epitope : epitopes_normal)
