@@ -8,6 +8,7 @@
 #include "findEpitopeDifferences.h"
 #include "enumerateEpitopes_haplotypePairs.h"
 #include "enumerateEpitopes_diff_pairs.h"
+#include "enumerateEpitopes_noHaplotypePairs.h"
 #include "Util.h"
 
 #include <assert.h>
@@ -32,7 +33,7 @@ std::set<std::string> identifyDifferences_faster(const std::map<std::string, std
 	epitopeLengths_tumour.insert(coreEpitopeLength + 2 * additionalBuffer);
 	epitopeLengths_normal.insert(coreEpitopeLength);
 
-	std::cout << timestamp() << "\t Start baseline enumeration...\n" << std::flush;
+	std::cout << timestamp() << "\t Start germline epitope enumeration...\n" << std::flush;
 		
 	std::map<std::string, double> epitopes_normal = enumeratePeptideHaplotypes_baseLine(1, coreEpitopeLength, referenceGenome, transcripts, variants_normal, false);
 
@@ -42,14 +43,15 @@ std::set<std::string> identifyDifferences_faster(const std::map<std::string, std
 		ignorePeptides.insert(epitope.first);
 	}
 
-	std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_properFrequencies_easy(1, referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true, &ignorePeptides, additionalBuffer);
+	std::cout << timestamp() << "\t Start tumour epitope enumeration...\n" << std::flush;
 
+	std::map<int, std::set<std::string>> epitopes_tumour = enumeratePeptideHaplotypes_improperFrequencies_easy(referenceGenome, transcripts, variants_combined, epitopeLengths_tumour, true, &ignorePeptides, additionalBuffer);
 
-	std::cout << "identifyDifferences_faster: Search for length " << coreEpitopeLength << " + 2x" << additionalBuffer << "\n" << std::flush;
+	std::cout << timestamp() << "\t identifyDifferences_faster(..): Searched for length " << coreEpitopeLength << " + 2x " << additionalBuffer << "\n" << std::flush;
 	assert(epitopes_tumour.count(combinedTumourEpitopeLength));
 
 	std::cout << "\t" << epitopes_normal.size() << " normal epitopes.\n";
-	std::cout << "\t" << epitopes_tumour.at(combinedTumourEpitopeLength).size() << " tumour epitopes.\n" << std::flush;
+	std::cout << "\t" << epitopes_tumour.at(combinedTumourEpitopeLength).size() << " tumour epitopes of length " << combinedTumourEpitopeLength << " with a tumour-exclusive core of " << coreEpitopeLength << " AAs.\n" << std::flush;
 
 	std::set<std::string> forReturn;
 

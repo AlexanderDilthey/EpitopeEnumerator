@@ -504,7 +504,7 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_oneTranscript_
 			}
 		}
 
-		void shortenAA(int peptideHaplotypeLength, std::map<std::string, double>& fragmentsStore, unsigned int sampleHaplotypes_size, int openedHaplotypes, bool have_deleted_haplotype)
+		void shortenAA(int peptideHaplotypeLength, std::map<std::string, double>& fragmentsStore, size_t sampleHaplotypes_size, size_t openedHaplotypes, bool have_deleted_haplotype)
 		{
 			size_t position_stop = AApart.find("!");
 			if(position_stop != std::string::npos)
@@ -634,7 +634,10 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_oneTranscript_
 				sampleHaplotypes.back().extendWithNucleotides(sampleAlleles.at(1));
 			}
 
-			openedHaplotypes *= 2;
+			if(openedHaplotypes < 1e6)
+			{	
+				openedHaplotypes *= 2;
+			}
 		}
 
 		/*

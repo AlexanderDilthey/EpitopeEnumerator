@@ -22,6 +22,8 @@ std::map<int, std::set<std::string>> enumeratePeptideHaplotypes_improperFrequenc
 	for(auto haplotypesOneLength : p_per_epitope)
 	{
 		int k = haplotypesOneLength.first;
+		forReturn[k].count("");
+
 		for(auto fragment : haplotypesOneLength.second)
 		{
 			std::string peptide = fragment.first;
@@ -219,7 +221,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 				}
 			}
 
-			void shortenAA(int peptideHaplotypeLength, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& fragmentsStore, unsigned int sampleHaplotypes_size, int openedHaplotypes, bool have_deleted_haplotype, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
+			void shortenAA(int peptideHaplotypeLength, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& fragmentsStore, size_t sampleHaplotypes_size, size_t openedHaplotypes, bool have_deleted_haplotype, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 			{
 				size_t position_stop = AApart.find("!");
 				if(position_stop != std::string::npos)
@@ -371,10 +373,11 @@ void enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(const transcri
 					sampleHaplotypes.push_back(preExtensionHaplotype);
 					sampleHaplotypes.back().extendWithNucleotides(sampleAlleles.at(1), sampleAlleles_refCoordinates.at(1), sampleAlleles_interesting.at(1));
 				}
-
-				openedHaplotypes *= 2;
-
-
+				
+				if(openedHaplotypes < 1e6)
+				{	
+					openedHaplotypes *= 2;
+				}
 			}
 
 			/*
@@ -526,7 +529,7 @@ void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::str
 		if(referenceGenome_plus.count(chromosomeID) == 0)
 			continue;
 
-		std::cout << "Transcript " << transcriptI << " / " << transcripts_plus.size() << "\n" << std::flush;
+		std::cout << "\r" << transcriptI << " / " << transcripts_plus.size() << "         " << std::flush;
 
 		// the oneTranscript_* maps are clear'ed within enumeratePeptideHaplotypes_oneTranscript
 		enumeratePeptideHaplotypes_improperFrequencies_oneTranscript(transcript, referenceGenome_plus, variants_plus, oneTranscript_p_per_epitope_forRet, ignoreCoreEpitopes, corePadding);
@@ -570,12 +573,18 @@ void enumeratePeptideHaplotypes_improperFrequencies_plus(const std::map<std::str
 			}
 		}
 	}
+	
+	std::cout << "\n";	
 }
 
 void enumeratePeptideHaplotypes_improperFrequencies(const std::map<std::string, std::string>& referenceGenome, const std::vector<transcript>& transcripts, const std::map<std::string, std::map<int, variantFromVCF>>& variants, std::set<int> haplotypeLengths, std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>>& p_per_epitope_forRet, const std::set<std::string>* ignoreCoreEpitopes, int corePadding)
 {
+	std::cout << timestamp() << "\t\t Set up minus-strand data..\n" << std::flush;
+
 	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);
 	std::map<std::string, std::map<int, variantFromVCF>> variants_minus = getMinusStrandVariants(variants, referenceGenome_minus);
+	
+	std::cout << timestamp() << "\t\t ... done.\n" << std::flush;
 
 	checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
 	checkVariantsConsistentWithReferenceGenome(variants_minus, referenceGenome_minus);

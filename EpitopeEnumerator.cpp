@@ -111,7 +111,10 @@ int main(int argc, char *argv[]) {
 		std::cout << timestamp() << "Read normal genome variants.\n" << std::flush;
 		
 		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"), referenceGenome);
-		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
+		
+		std::cout << timestamp() << "Read tumour genome variants.\n" << std::flush;
+
+		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour = readVariants(arguments.at("tumourVCF"), referenceGenome);
 
 		/*
 		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
@@ -139,7 +142,7 @@ int main(int argc, char *argv[]) {
 		
 			std::set<std::string> differences = identifyDifferences_faster(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
 
-			std::cout << "Core length " << coreEpitopeLength << ", padding " << additionalBuffer << ": " << differences.size() << " tumour-only epitopes.\n" << std::flush;
+			std::cout << timestamp() << "Core length " << coreEpitopeLength << ", padding " << additionalBuffer << ": " << differences.size() << " epitopes epitopes.\n" << std::flush;
 		}
 
 		/*
@@ -175,15 +178,13 @@ int main(int argc, char *argv[]) {
 
 		*/
 
-		assert(1 == 2);
-
+		/*
 		assert("Read tumour variants!" == "");
-
-
 		assert("minus-strand transcripts!" == "");
 		assert("add stop codons!" == "");
 		assert("add filter for PASS" == "");
 		assert("write tests for stop codons" == "!");
+		*/
 	}
 	else
 	{

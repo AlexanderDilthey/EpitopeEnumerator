@@ -25,6 +25,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 		positionsCoveredByVariant[r.first].resize(r.second.length(), false);
 	}
 
+	bool warned_overlap = false;
 	std::ifstream inputStream;
 	inputStream.open(VCF.c_str());
 	assert(inputStream.is_open());
@@ -91,8 +92,15 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 						number_2_allele[aI+1] = allele;
 					}
 
-					std::vector<std::string> thisSample_alleles_unphased = split(line_fields.at(9), "/");
-					std::vector<std::string> thisSample_alleles_phased = split(line_fields.at(9), "|");
+					std::vector<std::string> alleles_doubleColon = split(line_fields.at(9), ":");
+
+					std::vector<std::string> thisSample_alleles_unphased = split(alleles_doubleColon.at(0), "/");
+					std::vector<std::string> thisSample_alleles_phased = split(alleles_doubleColon.at(0), "|");
+					if(!(((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) || ((thisSample_alleles_unphased.size() == 1) && (thisSample_alleles_phased.size() == 2))))
+					{
+						std::cerr << "Problem in file " << VCF << " -- cannot parse the following line:\n";
+						std::cerr << "\t" << line << "\n" << std::flush;
+					}
 					assert(((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) || ((thisSample_alleles_unphased.size() == 1) && (thisSample_alleles_phased.size() == 2)));
 					std::vector<std::string> thisSample_alleles = ((thisSample_alleles_unphased.size() == 2) && (thisSample_alleles_phased.size() == 1)) ? thisSample_alleles_unphased : thisSample_alleles_phased;
 					assert(thisSample_alleles.size() == 2);
@@ -129,7 +137,12 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 				else
 				{
 					skipped_variants++;
-					std::cerr << "Warning: variant " << thisVariant.chromosomeID << ":" << thisVariant.position << " was ignored because it overlapped with other variants in the same VCF.\n" << std::flush;
+					
+					if(!warned_overlap)
+					{
+						std::cerr << "Warning: variant " << thisVariant.chromosomeID << ":" << thisVariant.position << " was ignored because it overlapped with other variants in the same VCF -- all further similar warnings for this VCF are suppressed.\n" << std::flush;
+						warned_overlap = true;
+					}
 				}
 				read_variants++;
 
@@ -155,6 +168,8 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 	std::map<std::string, std::map<int, transcriptExon>> exons_per_transcript;
 	std::set<std::string> ignored_transcriptIDs;
 
+	std::set<std::string> have_warned_for_type;
+	
 	long long lineI = -1;
 	while(inputStream.good())
 	{
@@ -218,7 +233,11 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 			{
 				if(dataFields.at("gene_type") != "protein_coding")
 				{
-					std::cerr << "Warning - gene_type for CDS is " << dataFields.at("gene_type") << " (in file " << transcriptsFile << ", line " << lineI << ")\n" << std::flush;
+					if(have_warned_for_type.count(dataFields.at("gene_type")) == 0)
+					{
+						std::cerr << "Warning - gene_type for CDS is " << dataFields.at("gene_type") << " (in file " << transcriptsFile << ", line " << lineI << ") -- all further warnings about this are suppressed!\n" << std::flush;
+						have_warned_for_type.insert(dataFields.at("gene_type"));
+					}
 					ignored_transcriptIDs.insert(ID);
 					continue;
 				}
