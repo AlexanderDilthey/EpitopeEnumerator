@@ -29,6 +29,8 @@ OBJS = \
         $(DIR_OBJ)/tests.o \
         $(DIR_OBJ)/readFiles.o \
         $(DIR_OBJ)/enumerateEpitopes_noHaplotypePairs.o \
+        $(DIR_OBJ)/enumerateEpitopes_diff_pairs.o \
+        $(DIR_OBJ)/findEpitopeDifferences.o \
         $(DIR_OBJ)/enumerateEpitopes_haplotypePairs.o 
         
 #

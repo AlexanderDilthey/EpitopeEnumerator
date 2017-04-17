@@ -25,6 +25,7 @@ unsigned int randomNumber(unsigned int max_inclusive);
 std::string generateRandomNucleotideSequence(int length);
 
 
+std::string timestamp();
 
 std::vector<std::string> partitionStringIntokMers(const std::string& str, int k);
 

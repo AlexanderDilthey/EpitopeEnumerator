@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <assert.h>
 #include <sstream>
+#include <time.h>
 
 int StrtoI(const std::string& s)
 {
@@ -28,6 +29,16 @@ void eraseNL(std::string& s)
 		    s.erase(s.length()-1);
 	}
 }
+
+std::string timestamp()
+{
+    time_t ltime; /* calendar time */
+    ltime=time(NULL); /* get current cal time */
+    char* timeCString = asctime( localtime(&ltime) );
+    std::string forReturn(timeCString);
+    return " [ "+ forReturn.substr(0, forReturn.length() - 1)+" ] ";
+}
+
 
 std::map<std::string, std::string> readFASTA(std::string file, bool fullIdentifier)
 {
