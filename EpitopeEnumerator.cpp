@@ -87,6 +87,8 @@ int main(int argc, char *argv[]) {
 
 		std::set<std::pair<int, int>> search_lengths = {make_pair(8,2)};
 
+		std::cout << timestamp() << "Read reference genome.\n" << std::flush;
+		
 		std::map<std::string, std::string> referenceGenome = readFASTA(arguments.at("referenceGenome"));
 		for(auto& r : referenceGenome)
 		{
@@ -101,7 +103,13 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
+		
+		std::cout << timestamp() << "Read transcripts.\n" << std::flush;
+		
 		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
+		
+		std::cout << timestamp() << "Read normal genome variants.\n" << std::flush;
+		
 		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"), referenceGenome);
 		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
 
@@ -126,6 +134,9 @@ int main(int argc, char *argv[]) {
 		{
 			int coreEpitopeLength = sL.first;
 			int additionalBuffer = sL.second;
+			
+			std::cout << timestamp() << "Scan for epitopes: " << coreEpitopeLength << " + 2 x " << additionalBuffer << ".\n" << std::flush;
+		
 			std::set<std::string> differences = identifyDifferences_faster(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
 
 			std::cout << "Core length " << coreEpitopeLength << ", padding " << additionalBuffer << ": " << differences.size() << " tumour-only epitopes.\n" << std::flush;

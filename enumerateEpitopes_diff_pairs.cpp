@@ -246,6 +246,8 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_oneTranscript(
 		n_haplotype_pairs = std::pow(2, n_fragments_diploid-1);
 	}
 
+	std::cout << n_haplotype_pairs << "  " << totalLength << "       " << "\n" << std::flush;
+	
 	std::vector<int> utilizingIndex;
 	utilizingIndex.resize(sequenceFragments.size(), 0);
 	std::string nucleotideHaplotype_1;
@@ -377,6 +379,7 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_plus(int k, co
 
 	for(unsigned int transcriptI = 0; transcriptI < transcripts_plus.size(); transcriptI++)
 	{
+		std::cout << "\r" << transcriptI << " / " << transcripts_plus.size() << "         " << std::flush;
 		const transcript& transcript = transcripts_plus.at(transcriptI);
 		assert(transcript.strand == '+');
 		std::string chromosomeID = transcript.chromosomeID;
@@ -401,6 +404,8 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine_plus(int k, co
 			}
 		}
 	}
+	
+	std::cout << "\n";
 
 	return forReturn;
 }
@@ -409,8 +414,10 @@ std::map<std::string, double> enumeratePeptideHaplotypes_baseLine(int threads, i
 {
 	assert(threads == 1);
 
+	std::cout << timestamp() << "\t\t Set up minus-strand data..\n" << std::flush;
 	std::map<std::string, std::string> referenceGenome_minus = getMinusStrandReferenceGenome(referenceGenome);
 	std::map<std::string, std::map<int, variantFromVCF>> variants_minus = getMinusStrandVariants(variants, referenceGenome_minus);
+	std::cout << timestamp() << "\t\t ... done.\n" << std::flush;
 
 	checkVariantsConsistentWithReferenceGenome(variants, referenceGenome);
 	checkVariantsConsistentWithReferenceGenome(variants_minus, referenceGenome_minus);
