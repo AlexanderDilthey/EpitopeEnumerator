@@ -764,9 +764,10 @@ fragmentT AAHaplotypeFromSequence_stopAware(const std::string& sequence, const s
 	assert(sequence.length() == positions.size()); assert(sequence.length() == interesting.size());
 	std::vector<fragmentT> forReturn;
 
-	std::string AAs; AAs.reserve(sequence.length()/3);
-	std::vector<std::pair<int, int>> AAs_firstLast; AAs_firstLast.reserve(AAs.capacity());
-	std::vector<bool> AAs_interesting; AAs_interesting.reserve(AAs.capacity());
+	int max_elements = sequence.length()/3;
+	std::string AAs; AAs.reserve(max_elements);
+	std::vector<std::pair<int, int>> AAs_firstLast; AAs_firstLast.reserve(max_elements);
+	std::vector<bool> AAs_interesting; AAs_interesting.reserve(max_elements);
 
 
 	std::string runningCodon;

@@ -46,8 +46,6 @@ int main(int argc, char *argv[]) {
 	if(arguments.at("action") == "testing")
 	{
 		test_naive_diff_epitopes_identical();
-		assert(4 == 11);
-
 		test_proper_diff_enumeration(1);
 		some_simple_tests(4);
 		test_proper_improper_enumeration(4);
