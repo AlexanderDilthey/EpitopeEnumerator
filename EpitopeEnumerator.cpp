@@ -137,6 +137,18 @@ int main(int argc, char *argv[]) {
 
 		 */
 
+		std::ofstream file_output_stream;
+		file_output_stream.open("peptides.txt");
+		file_output_stream << "peptide" << "\t" <<
+				"coreLength" << "\t" <<
+				"additionalPadding" << "\t" <<
+				"epitopeLocationIndex" << "\t" <<
+				"chromosome" << "\t" <<
+				"interesting" << "\t" <<
+				"positions" << "\t" <<
+				"epitopeMaxP_allLocations" <<
+		"\n";
+
 		for(auto sL : search_lengths)
 		{
 			int coreEpitopeLength = sL.first;
@@ -144,10 +156,16 @@ int main(int argc, char *argv[]) {
 			
 			std::cout << timestamp() << "Scan for epitopes: " << coreEpitopeLength << " + 2 x " << additionalBuffer << ".\n" << std::flush;
 		
-			std::set<std::string> differences = identifyDifferences_faster(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
+			// std::set<std::string> differences = identifyDifferences_faster(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
+			// std::cout << timestamp() << "Core length " << coreEpitopeLength << ", padding " << additionalBuffer << ": " << differences.size() << " epitopes epitopes.\n" << std::flush;
 
-			std::cout << timestamp() << "Core length " << coreEpitopeLength << ", padding " << additionalBuffer << ": " << differences.size() << " epitopes epitopes.\n" << std::flush;
+			produceDifferencesFile(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer, &file_output_stream);
 		}
+
+		file_output_stream.close();
+
+		assert("Think about whether we want to take MUTECT germline calls!\n" == "");
+		assert("Pass Sample ID as argument to variant reading stuff?\n" == "");
 
 		/*
 		std::map<std::pair<int, int>, int> testP;
