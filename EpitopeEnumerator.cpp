@@ -85,7 +85,11 @@ int main(int argc, char *argv[]) {
 		requireArgument("normalVCF", true);
 		requireArgument("tumourVCF", true);
 
-		std::set<std::pair<int, int>> search_lengths = {make_pair(8,2)};
+		std::set<std::pair<int, int>> search_lengths;
+		for(int l : {8, 9, 10, 11, 13, 14, 15, 16, 17})
+		{
+			search_lengths.insert(make_pair(l, 2));
+		}
 
 		std::cout << timestamp() << "Read reference genome.\n" << std::flush;
 		
