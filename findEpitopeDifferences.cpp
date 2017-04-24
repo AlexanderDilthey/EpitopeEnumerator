@@ -88,7 +88,7 @@ void produceDifferencesFile (const std::map<std::string, std::string>& reference
 	{
 		const std::string& epitope = epitope_and_p.first;
 		int locationIndex = 0;
-		for(auto locationsPerChromosome : locations_per_epitope)
+		for(auto locationsPerChromosome : locations_per_epitope.at(epitope))
 		{
 			const std::string& chromosomeID = locationsPerChromosome.first;
 

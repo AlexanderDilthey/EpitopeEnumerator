@@ -156,8 +156,8 @@ int main(int argc, char *argv[]) {
 			
 			std::cout << timestamp() << "Scan for epitopes: " << coreEpitopeLength << " + 2 x " << additionalBuffer << ".\n" << std::flush;
 		
-			// std::set<std::string> differences = identifyDifferences_faster(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
-			// std::cout << timestamp() << "Core length " << coreEpitopeLength << ", padding " << additionalBuffer << ": " << differences.size() << " epitopes epitopes.\n" << std::flush;
+			std::set<std::string> differences = identifyDifferences_faster(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer);
+			std::cout << timestamp() << "Core length " << coreEpitopeLength << ", padding " << additionalBuffer << ": " << differences.size() << " epitopes epitopes.\n" << std::flush;
 
 			produceDifferencesFile(referenceGenome, transcripts, variants, variants_tumour, coreEpitopeLength, additionalBuffer, &file_output_stream);
 		}
