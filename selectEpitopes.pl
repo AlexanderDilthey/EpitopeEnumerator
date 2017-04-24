@@ -23,7 +23,8 @@ my %lengths = (
 
 my %hla = (
 	'classI' => [qw/HLA-A03:01 HLA-A11:01 HLA-B27:05 HLA-B39:01 HLA-C02:02 HLA-C07:02/],
-	'classII' => [qw/HLA-DQA10101-DQB10501 HLA-DQA10101-DQB10502 HLA-DQA10102-DQB10501 HLA-DQA10102-DQB10502 DRB1_0101/, '/data/projects/phillippy/projects/Vaccination/prediction/netMHCIIpan-3.1/DRB11596.fsa'],
+	# 'classII' => [qw/HLA-DQA10101-DQB10501 HLA-DQA10101-DQB10502 HLA-DQA10102-DQB10501 HLA-DQA10102-DQB10502 DRB1_0101/, '/data/projects/phillippy/projects/Vaccination/prediction/netMHCIIpan-3.1/DRB11596.fsa'],
+	'classII' => [qw/HLA-DQA10101-DQB10501 HLA-DQA10101-DQB10502 HLA-DQA10102-DQB10501 HLA-DQA10102-DQB10502 DRB1_0101/],
 );
 
 my $tmpDir = 'tmp';
@@ -177,8 +178,7 @@ foreach my $class (qw/classI classII/)
 							
 							unless($rank =~ /^[\d\.]+$/)
 							{
-								next;
-								warn "Weird rank $rank from line in $fn_output:\n$line" 
+								die "Weird rank $rank from line in $fn_output:\n$line" 
 							}
 							if((not exists $peptides_minimum_rank{$peptide}) or ($peptides_minimum_rank{$peptide} > $rank))
 							{
