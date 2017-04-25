@@ -46,7 +46,7 @@ public:
 	void print() const;
 };
 
-std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF, const std::map<std::string, std::string>& referenceGenome);
+std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF, const std::map<std::string, std::string>& referenceGenome, std::string sampleID = "");
 std::vector<transcript> readTranscripts(std::string transcriptsFile);
 
 std::vector<transcript> getPlusStrandTranscripts(const std::vector<transcript>& transcripts);
@@ -58,6 +58,6 @@ void extendAsNecessary(std::string& S, unsigned int desiredLength);
 void checkVariantsConsistentWithReferenceGenome(const std::map<std::string, std::map<int, variantFromVCF>>& variants, const std::map<std::string, std::string>& referenceGenome);
 void checkTranscriptsTranslate(const std::vector<transcript>& transcripts, const std::map<std::string, std::string>& referenceGenome);
 
-std::map<std::string, std::map<int, variantFromVCF>> combineVariants(const std::map<std::string, std::map<int, variantFromVCF>>& variants_normalGenome, const std::map<std::string, std::map<int, variantFromVCF>>& additionalVariants_tumourGenome, const std::map<std::string, std::string>& referenceGenome);
+std::map<std::string, std::map<int, variantFromVCF>> combineVariants(const std::map<std::string, std::map<int, variantFromVCF>>& variants_normalGenome, const std::map<std::string, std::map<int, variantFromVCF>>& additionalVariants_tumourGenome, const std::map<std::string, std::string>& referenceGenome, bool trySettingInteresting = true);
 
 #endif /* READFILES_H_ */

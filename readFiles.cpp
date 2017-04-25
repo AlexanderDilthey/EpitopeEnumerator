@@ -15,7 +15,7 @@
 #include <set>
 #include "Util.h"
 
-std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF, const std::map<std::string, std::string>& referenceGenome)
+std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF, const std::map<std::string, std::string>& referenceGenome, std::string sampleID)
 {
 	std::map<std::string, std::map<int, variantFromVCF>> forReturn;
 	std::map<std::string, std::vector<bool>> positionsCoveredByVariant;
@@ -33,6 +33,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 	std::string line;
 	size_t read_variants = 0;
 	size_t skipped_variants = 0;
+	int sample_target_field = -1;
 	while(inputStream.good())
 	{
 		std::getline(inputStream, line);
@@ -48,11 +49,32 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 
 			if(line.substr(0, 1) == "#")
 			{
+				assert(! sawHeader);
 				assert(line_fields.at(0) == "#CHROM");
 				assert(line_fields.at(1) == "POS");
 				assert(line_fields.at(3) == "REF");
 				assert(line_fields.at(4) == "ALT");
 				assert(line_fields.size() >= 10);
+
+				if(sampleID == "")
+				{
+					sample_target_field = 9;
+				}
+				else
+				{
+					for(unsigned int i = 9; i < line_fields.size(); i++)
+					{
+						if(line_fields.at(i) == sampleID)
+						{
+							sample_target_field = i;
+						}
+					}
+					if(sample_target_field == -1)
+					{
+						std::cerr << "Could not find field for sample " << sampleID << " in VCF " << VCF << "\n" << std::flush;
+						throw std::runtime_error("Can't find sample column.");
+					}
+				}
 				sawHeader = true;
 			}
 			else
@@ -92,7 +114,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 						number_2_allele[aI+1] = allele;
 					}
 
-					std::vector<std::string> alleles_doubleColon = split(line_fields.at(9), ":");
+					std::vector<std::string> alleles_doubleColon = split(line_fields.at(sample_target_field), ":");
 
 					std::vector<std::string> thisSample_alleles_unphased = split(alleles_doubleColon.at(0), "/");
 					std::vector<std::string> thisSample_alleles_phased = split(alleles_doubleColon.at(0), "|");
@@ -522,7 +544,7 @@ void checkVariantsConsistentWithReferenceGenome(const std::map<std::string, std:
 	}
 }
 
-std::map<std::string, std::map<int, variantFromVCF>> combineVariants(const std::map<std::string, std::map<int, variantFromVCF>>& variants_normalGenome, const std::map<std::string, std::map<int, variantFromVCF>>& additionalVariants_tumourGenome, const std::map<std::string, std::string>& referenceGenome)
+std::map<std::string, std::map<int, variantFromVCF>> combineVariants(const std::map<std::string, std::map<int, variantFromVCF>>& variants_normalGenome, const std::map<std::string, std::map<int, variantFromVCF>>& additionalVariants_tumourGenome, const std::map<std::string, std::string>& referenceGenome, bool trySettingInteresting)
 {
 	std::map<std::string, std::map<int, variantFromVCF>> forReturn;
 
@@ -571,7 +593,7 @@ std::map<std::string, std::map<int, variantFromVCF>> combineVariants(const std::
 			std::vector<bool> tumourVariants_interesting; tumourVariants_interesting.reserve(2);
 			for(auto tV : tumourVariant.sampleAlleles)
 			{
-				tumourVariants_interesting.push_back((normalAlleles.count(tV)) ? false : true);
+				tumourVariants_interesting.push_back((normalAlleles.count(tV)) ? false : (true && trySettingInteresting));
 			}
 			tumourVariant.sampleAlleles_interesting = tumourVariants_interesting;
 

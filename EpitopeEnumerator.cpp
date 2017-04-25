@@ -32,6 +32,8 @@ int main(int argc, char *argv[]) {
 	std::map<std::string, std::string> arguments;
 
 	arguments["action"] = "testing";
+	arguments["mutectVCFMode"] = "0";
+
 	for(unsigned int i = 0; i < ARG.size(); i++)
 	{
 		if((ARG.at(i).length() > 2) && (ARG.at(i).substr(0, 2) == "--"))
@@ -84,6 +86,9 @@ int main(int argc, char *argv[]) {
 		requireArgument("transcripts", true);
 		requireArgument("normalVCF", true);
 		requireArgument("tumourVCF", true);
+		requireArgument("mutectVCFMode", false);
+
+		bool mutectVCFMode = StrtoI(arguments.at("mutectVCFMode"));
 
 		std::set<std::pair<int, int>> search_lengths;
 		for(int l : {8, 9, 10, 11, 13, 14, 15, 16, 17})
@@ -112,13 +117,20 @@ int main(int argc, char *argv[]) {
 		
 		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"));
 		
-		std::cout << timestamp() << "Read normal genome variants.\n" << std::flush;
+		std::cout << timestamp() << "Read normal genome variants - combine with normal variants from MuTect call file: " << mutectVCFMode << ".\n" << std::flush;
 		
 		std::map<std::string, std::map<int, variantFromVCF>> variants = readVariants(arguments.at("normalVCF"), referenceGenome);
-		
+
+		if(mutectVCFMode)
+		{
+			std::map<std::string, std::map<int, variantFromVCF>> variants_mutect_normal = readVariants(arguments.at("tumourVCF"), referenceGenome, "NORMAL");
+			std::map<std::string, std::map<int, variantFromVCF>> variants_combined_normal = combineVariants(variants, variants_mutect_normal, referenceGenome, false);
+			variants = variants_combined_normal;
+		}
+
 		std::cout << timestamp() << "Read tumour genome variants.\n" << std::flush;
 
-		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour = readVariants(arguments.at("tumourVCF"), referenceGenome);
+		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour = (mutectVCFMode) ? readVariants(arguments.at("tumourVCF"), referenceGenome, "TUMOR") : readVariants(arguments.at("tumourVCF"), referenceGenome);
 
 		/*
 		std::map<std::string, std::map<int, variantFromVCF>> variants_tumour;
@@ -164,8 +176,8 @@ int main(int argc, char *argv[]) {
 
 		file_output_stream.close();
 
-		assert("Think about whether we want to take MUTECT germline calls!\n" == "");
-		assert("Pass Sample ID as argument to variant reading stuff?\n" == "");
+		// assert("Think about whether we want to take MUTECT germline calls!\n" == "");
+		// assert("Pass Sample ID as argument to variant reading stuff?\n" == "");
 
 		/*
 		std::map<std::pair<int, int>, int> testP;
