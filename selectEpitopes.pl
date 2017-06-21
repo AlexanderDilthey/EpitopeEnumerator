@@ -56,7 +56,10 @@ my %lengths = (
 );
 
 my %hla = %{translate_HLAPRG_to_netMHC($HLAtypes)};
-die Dumper(\%hla);
+
+print "Sample HLA types, translated:\n";
+print "\tclass I : ", join(", ", @{$hla{classI}}), "\n";
+print "\tclass II: ", join(", ", @{$hla{classII}}), "\n";
 
 my $tmpDir = 'tmp';
 mkdir($tmpDir) unless(-d $tmpDir);
