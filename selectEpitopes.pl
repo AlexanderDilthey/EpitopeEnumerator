@@ -5,27 +5,58 @@ use Data::Dumper;
 use Getopt::Long; 
 use List::Util qw/all/;
 use List::MoreUtils qw/mesh/;
+use Storable qw/store retrieve dclone/;
 
 $| = 1;
 
 my $netMHCpan_bin = qq(/data/projects/phillippy/projects/Vaccination/prediction/netMHCpan-3.0/netMHCpan);
 my $netMHCIIpan_bin = qq(/data/projects/phillippy/projects/Vaccination/prediction/netMHCIIpan-3.1/netMHCIIpan);
 
+die "NetMHCpan ($netMHCpan_bin) not executable - please check that path is specified correctly in Perl file" unless(-x $netMHCpan_bin);
+die "NetMHCIIpan ($netMHCIIpan_bin) not executable - please check that path is specified correctly in Perl file" unless(-x $netMHCIIpan_bin);
+
+unless(-e '_codon_2_aaShort')
+{
+	system('perl getCodonTables.pl') and die "Could not get codon tables";
+	die unless(-e '_codon_2_aaShort');
+}
+my $codon_2_aaShort_href = retrieve '_codon_2_aaShort';
+my $codon_2_aaLong_href = retrieve '_codon_2_aaLong';
+
+my $aaShort_2_codon_href = {};
+foreach my $codon (keys %$codon_2_aaShort_href)
+{
+	my $AAshort = $codon_2_aaShort_href->{$codon};
+	push(@{$aaShort_2_codon_href->{$AAshort}}, $codon);
+}
+
+my $AD5_href = readFASTA('AD5.fa');
+my $prepost_href = readFASTA('prepost.fa');
+my $E3_begin_1based = 27858;
+my $E3_end_1based = 30839;
+my $targetLength_nucleotides = ($E3_end_1based - $E3_begin_1based + 1) - (length($prepost_href->{pre}) + length($prepost_href->{post}));
+my $targetLength = $targetLength_nucleotides / 3;
+
+my $prefix = 'genome';
+
 my $peptides_file = 'peptides_intermediate.txt';
+my $HLAtypes = '/data/projects/phillippy/projects/MHC/HLA-PRG-LA/working/CASE_007_NORMAL_WEX/hla/R1_bestguess_G.txt';
 GetOptions (
 	'peptides_file:s' => \$peptides_file, 
+	'prefix:s' => \$prefix, 
+	'HLAtypes:s' => \$HLAtypes, 
 );
+
+die "Please specify output from C++ component via --peptides_file" unless(-e $peptides_file);
+die "Please specify output from HLA*PRG:LA for normal genome via --HLAtypes" unless(-e $HLAtypes);
 
 my %lengths = (
 	'classI' => [8, 9, 10, 11],
 	'classII' => [15],
 );
 
-my %hla = (
-	'classI' => [qw/HLA-A03:01 HLA-A11:01 HLA-B27:05 HLA-B39:01 HLA-C02:02 HLA-C07:02/],
-	# 'classII' => [qw/HLA-DQA10101-DQB10501 HLA-DQA10101-DQB10502 HLA-DQA10102-DQB10501 HLA-DQA10102-DQB10502 DRB1_0101/, '/data/projects/phillippy/projects/Vaccination/prediction/netMHCIIpan-3.1/DRB11596.fsa'],
-	'classII' => [qw/HLA-DQA10101-DQB10501 HLA-DQA10101-DQB10502 HLA-DQA10102-DQB10501 HLA-DQA10102-DQB10502 DRB1_0101/],
-);
+my %hla = %{translate_HLAPRG_to_netMHC($HLAtypes)};
+die Dumper(\%hla);
 
 my $tmpDir = 'tmp';
 mkdir($tmpDir) unless(-d $tmpDir);
@@ -205,13 +236,16 @@ foreach my $peptide (keys %peptides_minimum_rank)
 }
 my @all_lengths = sort keys %peptide_lengths;
 
-my $targetLength = 200;
-my $spacerSequence = '!!';
-my $spacer_between_individual_targets = length($spacerSequence);
+# Thosea asigna virus 2A (T2A of TaV)
+# EGRGSLLTCGDVEENPGP
+# 
 
+
+my $spacerSequence = 'EGRGSLLTCGDVEENPGP';
+my $spacer_between_individual_targets = length($spacerSequence);
+my $spacerSequence_translated = join('', map {randomChoice($aaShort_2_codon_href->{$_})} split(//, $spacerSequence));
 my $currentLength_noSpacer = 0;
 my %selected_explicitly;
-
 
 
 my @peptides_by_rank = sort {$peptides_minimum_rank{$a} <=> $peptides_minimum_rank{$b}} keys %peptides_minimum_rank;
@@ -297,6 +331,106 @@ my @bindingranks_implicitly = map {$peptides_minimum_rank{$_}} keys %selected_im
 print "\tSelected implicitly: ", scalar(@bindingranks_implicitly), " peptides\n";
 print "\t\tMin-median-max binding rank: ", join(", ", min_max_median(\@bindingranks_implicitly)), "\n";
 
+# generate virus genome
+
+die unless(substr($prepost_href->{pre}, length($prepost_href->{pre})-4, 4) eq 'ATGG');
+$prepost_href->{pre} = substr($prepost_href->{pre}, 0, length($prepost_href->{pre})-1);
+die unless(substr($prepost_href->{pre}, length($prepost_href->{pre})-3, 3) eq 'ATG');
+
+die unless($codon_2_aaLong_href->{substr($prepost_href->{post}, 0, 3)} eq 'Stop');
+
+my %peptides_translated;
+my $peptide_starts_withT;
+foreach my $selectedPeptide (keys %selected_explicitly)
+{
+	my $remaingPeptideForTranslation = $selectedPeptide;
+	my $runningTranslation;
+	if(not $peptide_starts_withT)
+	{
+		my $firstAA = substr($selectedPeptide, 0, 1);
+		die unless(exists $aaShort_2_codon_href->{$firstAA});
+		my @possibleTranslations = @{$aaShort_2_codon_href->{$firstAA}};
+		my @possibleTranslations_startWithG = grep {substr($_, 0, 1) eq 'G'} @possibleTranslations;
+		if(scalar(@possibleTranslations_startWithG))
+		{
+			$runningTranslation .= randomChoice(\@possibleTranslations_startWithG);
+			$remaingPeptideForTranslation = substr($remaingPeptideForTranslation, 1);
+			$peptide_starts_withT = $selectedPeptide;
+		}
+	}
+	my @remainingAAs = split(//, $remaingPeptideForTranslation);
+	foreach my $AA (@remainingAAs)
+	{
+		die unless(exists $aaShort_2_codon_href->{$AA});
+		my @possibleTranslations = @{$aaShort_2_codon_href->{$AA}};
+		$runningTranslation .= randomChoice(\@possibleTranslations);
+	}
+	
+	die unless(length($runningTranslation) == (3 * length($selectedPeptide)));
+	$peptides_translated{$selectedPeptide} = $runningTranslation;
+}
+
+my @peptides_in_order = $peptide_starts_withT ?
+	($peptide_starts_withT, (grep {$_ ne $peptide_starts_withT} keys %selected_explicitly)) :
+	(keys %selected_explicitly);
+die unless(scalar(@peptides_in_order) == scalar(keys %selected_explicitly));
+
+
+my $combined_nucleotide_sequence = join($spacerSequence_translated, map {my $t = $peptides_translated{$_}; die unless($t); $t} @peptides_in_order);
+if($peptide_starts_withT)
+{
+	die unless(substr($combined_nucleotide_sequence, 0, 1) eq 'G');
+}
+else
+{
+	warn "No proper Kozak consensus sequence";
+}
+die unless($combined_nucleotide_sequence =~ /^[ACGT]+$/);
+
+my $fn_output_peptides = $prefix . '.encodedPeptides';
+my $fn_output_withPromotorAndEnd = $prefix . '.encodedPeptides.withPromotorAndTail';
+my $fn_output_completeGenome = $prefix . '.completeGenome';
+
+my $string_encoded_peptides = $combined_nucleotide_sequence;
+my $string_with_promotor = $prepost_href->{pre} . $combined_nucleotide_sequence . $prepost_href->{post};
+
+
+die unless(scalar(keys %$AD5_href) == 1);
+my $AD5_genome = (values %$AD5_href)[0];
+
+my $string_genome = $AD5_genome;
+substr($string_genome, $E3_begin_1based - 1, $E3_end_1based - $E3_begin_1based + 1) = $string_with_promotor;
+
+open(OUTPEP, '>', $fn_output_peptides) or die "Cannot open $fn_output_peptides";
+print OUTPEP $string_encoded_peptides, "\n";
+close(OUTPEP);
+
+open(OUTPEPPROM, '>', $fn_output_withPromotorAndEnd) or die "Cannot open $fn_output_withPromotorAndEnd";
+print OUTPEPPROM $string_with_promotor, "\n";
+close(OUTPEPPROM);
+
+open(OUTGENOME, '>', $fn_output_completeGenome) or die "Cannot open $fn_output_completeGenome";
+print OUTGENOME $string_genome, "\n";
+close(OUTGENOME);
+
+print "\nGenerated files:\n";
+print "\t - $fn_output_peptides\n";
+print "\t - $fn_output_withPromotorAndEnd\n";
+print "\t - $fn_output_completeGenome\n";
+
+sub randomChoice
+{
+	my $aref = shift;
+	die unless(scalar(@{$aref}) >= 1);
+	if(scalar(@{$aref}) == 1)
+	{
+		return $aref->[0];
+	}	
+	my $i = int(rand(scalar(@$aref)));
+	die unless($i >= 0);
+	die unless($i <= $#{$aref});
+	return $aref->[$i];
+}
 
 sub min_max_median
 {
@@ -335,3 +469,149 @@ sub kMers
 	return @kMers;
 }
 
+sub readFASTA
+{
+	my $file = shift;	
+	my %R;
+	
+	open(F, '<', $file) or die "Cannot open $file";
+	my $currentSequence;
+	while(<F>)
+	{
+		if(($. % 1000000) == 0)
+		{
+		# 	print "\r", $.;
+		}
+		
+		my $line = $_;
+		chomp($line);
+		$line =~ s/[\n\r]//g;
+		if(substr($line, 0, 1) eq '>')
+		{
+			$currentSequence = substr($line, 1);
+		}
+		else
+		{
+			$R{$currentSequence} .= $line;
+		}
+	}	
+	close(F);
+		
+	return \%R;
+}
+
+
+sub translate_HLAPRG_to_netMHC
+{
+	my $fn_HLAPRG = shift;
+	die "File $fn_HLAPRG not there" unless(-e $fn_HLAPRG);
+	
+
+	my $types_classI_str = `$netMHCpan_bin -listMHC`;
+	my @types_classI = split(/\n/, $types_classI_str);
+	my %have_types_classI = map {$_ => 1} @types_classI;
+	
+	my $types_classII_str = `$netMHCIIpan_bin -list`;
+	my @types_classII = split(/\n/, $types_classII_str);
+	my %have_types_classII = map {$_ => 1} @types_classII;
+	
+	my @classI_alleles;
+	my @classII_alleles;
+	my %types = ();
+	open(F, '<', $fn_HLAPRG) or die "Cannot open $fn_HLAPRG";
+	my $hL = <F>; chomp($hL);
+	my @hF = split(/\t/, $hL);
+	while(<F>)
+	{
+		my $l = $_;
+		chomp($l);
+		next unless($l);
+		my @l = split(/\t/, $l);
+		my %l = (mesh @hF, @l);
+		my $allele = $l{Allele};
+		$types{$l{Locus}}{$allele}++;
+	}
+	close(F);
+	
+	foreach my $classILocus (qw/A B C/)
+	{
+		unless(exists $types{$classILocus})
+		{
+			warn "No HLA types for locus $classILocus?";
+			next;
+		}	
+		
+		foreach my $allele (keys %{$types{$classILocus}})
+		{
+			die unless($allele =~ /\w\*(\d+):(\d+)/);
+			my $format_like_netMHC = 'HLA-' . $classILocus . $1 . ':' . $2;
+			if(exists $have_types_classI{$format_like_netMHC})
+			{
+				push(@classI_alleles, $format_like_netMHC);
+			}	
+			else
+			{
+				warn "Can't translate allele $allele to NetMCHpan format";
+			}
+		}
+	}
+	
+	foreach my $classIILocus (qw/DRB1/)
+	{
+		unless(exists $types{$classIILocus})
+		{
+			warn "No HLA types for locus $classIILocus?";
+			next;
+		}	
+		
+		foreach my $allele (keys %{$types{$classIILocus}})
+		{
+			die unless($allele =~ /\w\*(\d+):(\d+)/);
+			my $format_like_netMHC = $classIILocus . '_' . $1 . '' . $2;
+			if(exists $have_types_classII{$format_like_netMHC})
+			{
+				push(@classII_alleles, $format_like_netMHC);
+			}	
+			else
+			{
+				warn "Can't translate allele $allele to NetMCHIIpan format (no $format_like_netMHC?)";
+			}
+		}
+	}	
+	
+	foreach my $classII (qw/DQ/)
+	{
+		unless((exists $types{$classII.'A1'}) and (exists $types{$classII.'B1'}))
+		{
+			warn "No HLA types for locus $classII A/B?";
+			next;
+		}	
+		
+		foreach my $alleleA (keys %{$types{$classII.'A1'}})
+		{
+			die unless($alleleA =~ /\w\*(\d+):(\d+)/);
+			my $alleleA_format_like_netMHC = $classII.'A1' . '' . $1 . '' . $2;
+			
+			foreach my $alleleB (keys %{$types{$classII.'B1'}})
+			{
+				die unless($alleleB =~ /\w\*(\d+):(\d+)/);
+				my $alleleB_format_like_netMHC = $classII.'B1' . '' . $1 . '' . $2;
+
+				my $AB_like_netMHC = 'HLA-' . $alleleA_format_like_netMHC . '-' . $alleleB_format_like_netMHC;
+				if(exists $have_types_classII{$AB_like_netMHC})
+				{
+					push(@classII_alleles, $AB_like_netMHC);
+				}	
+				else
+				{
+					warn "Can't translate allele pair $alleleA / $alleleB to NetMCHIIpan format (no $AB_like_netMHC?)";
+				}
+			}		
+		}
+	}		
+
+	return {
+		'classI' => \@classI_alleles,
+		'classII' => \@classII_alleles,
+	};		
+}

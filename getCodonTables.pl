@@ -1,4 +1,5 @@
 use strict;
+use Storable qw/store retrieve dclone/;
 
 my %codon_2_aaShort;
 my %codon_2_aaLong;
@@ -25,7 +26,11 @@ print "std::map<std::string, std::string> codon2AA;\n";
 foreach my $codon (keys %codon_2_aaShort)
 {
 	print qq(codon2AA["$codon"] = "$codon_2_aaShort{$codon}";), "\n";
-}	
+}
+
+store \%codon_2_aaShort, '_codon_2_aaShort';
+store \%codon_2_aaLong, '_codon_2_aaLong';
+
 __DATA__
 Ala	A	GCT, GCC, GCA, GCG
 Arg	R	CGT, CGC, CGA, CGG, AGA, AGG
