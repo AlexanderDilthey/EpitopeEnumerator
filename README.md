@@ -9,7 +9,7 @@ Input:
 - a GRCh38 VCF file (from Mutect2) specifying the tumour genome
 - reference genome and annotation files
 
-If you don't have up-to-date GRCh38 VCFs for your samples, there is also a utility script `prepareSequencingReads.pl` that will take existing cancer / normal BAMs and apply current GATK 'best-practises' (from https://software.broadinstitute.org/gatk/best-practices/, June 2017) to generate VCFs from the original reads. This step includes re-alignment to the B38 reference genome and is computationally intensive (both whole-exome and whole-genome data are supported in principle, but if you're dealing with the data volumes of whole-genome data, you might consider transferring the alignment process to your local grid -- `prepareSequencingReads.pl`, however, can't do that).
+If you don't have up-to-date GRCh38 VCFs for your samples, there is also a utility script `prepareSequencingReads.pl` that will take existing cancer / normal BAMs and apply current GATK 'best practises' (from https://software.broadinstitute.org/gatk/best-practices/, June 2017) to generate VCFs from the original reads. This step includes re-alignment to the B38 reference genome and is computationally intensive (both whole-exome and whole-genome data are supported in principle, but if you're dealing with the data volumes of whole-genome data, you might consider pushing the alignment process onto your local grid -- `prepareSequencingReads.pl`, however, can't do that).
 
 ## Installation ##
 
