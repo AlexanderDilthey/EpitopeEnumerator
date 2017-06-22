@@ -169,5 +169,9 @@ This process of building a combined peptide string S happens in a greedy manner:
 - we iterate through this sorted list and consider each peptide `peptide` in turn.
 - if length(`S` + `linker` + `peptide`) < desired_length, we set `S` = `S` + `linker` + `peptide`. `linker` is a sequence that we use to link multiple peptide epitopes (see below). If the just-added `peptide` contains one of the previously added components of `S` as a sub-string, we remove these previously added components of `S` from `S` before considering the next peptide in the sorted list.
 
-## Biological background ##
+## Conceptional / biological background ##
+- In the default configuration, the script searches for class I peptides of length 8, 9, 10, 11 amino acids and for class II peptides of length 15 amino acids. This can easily configured by editing the `%lengths` hash.
+- We use a 2A linker string ('EGRGSLLTCGDVEENPGP' from [Szymczak et al.](https://www.ncbi.nlm.nih.gov/pubmed/15064769)) to connect different epitopes in the same translational unit (this is referred to as 'multicistronic' constructs). Briefly, the primary amino acid sequence will be post-translationally separated at the 2A positions, the cleavage happening between the final 'G' and 'P' amino acids. As an unwanted side effect, this will lead to the formation of additional epitopes.
+- Random codon encoding
+- CMV
 
