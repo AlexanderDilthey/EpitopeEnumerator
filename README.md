@@ -159,4 +159,15 @@ Output:
 - `myPrefix.encodedPeptides.withPromotorAndTail`: peptides and 2A linkers in DNA, with CMV promotor and some polyA tail sequence
 - `myPrefix.completeGenome`: genome of Adenovirus 5 strain Merlin, with E3 components substituted with the content of `myPrefix.encodedPeptides.withPromotorAndTail`.
 
+## Computational background ##
+
+This script takes the set of cancer-exclusive peptides; for each such peptide, it uses NetMHCpan / NetMHCIIpan to predict how well the peptide would be presented by the patient's HLA proteins; finally, it tries to build a combined peptide string of a desired length, optimizing for presentability of the contained peptides.
+
+This process of building a combined peptide string S happens in a greedy manner:
+- set `S` = ''
+- we sort the complete list of peptides (i.e. not distinguishing by peptide length) by by how well they're predicted to bind to any of the patient's HLA molecules (i.e., for each peptide, we take the maximum presentation "probability" across all HLA types).
+- we iterate through this sorted list and consider each peptide `peptide` in turn.
+- if length(`S` + `linker` + `peptide`) < desired_length, we set `S` = `S` + `linker` + `peptide`. `linker` is a sequence that we use to link multiple peptide epitopes (see below). If the just-added `peptide` contains one of the previously added components of `S` as a sub-string, we remove these previously added components of `S` from `S` before considering the next peptide in the sorted list.
+
+## Biological background ##
 
