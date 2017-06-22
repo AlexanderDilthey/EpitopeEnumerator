@@ -153,6 +153,10 @@ Parameters:
 - `--prefix mySample`: prefix for input (`mySamplepeptides.txt`) and output files.
 - `--HLAtypes PATH`: path to sample HLA types in HLA\*PRG:LA format (see above).
 
-
+Output:
+- `myPrefix.peptides`: explicitly selected peptides (amino acid sequences)
+- `myPrefix.peptidesAsDNAWith2A`: peptide sequences translated into DNA (random codons to prevent homologous recombination in healthy cells) and linked with 2A sequences
+- `myPrefix.encodedPeptides.withPromotorAndTail`: peptides and 2A linkers in DNA, with CMV promotor and some polyA tail sequence
+- `myPrefix.completeGenome`: genome of Adenovirus 5 strain Merlin, with E3 components substituted with the content of `myPrefix.encodedPeptides.withPromotorAndTail`.
 
 
