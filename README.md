@@ -44,7 +44,7 @@ perl -c selectEpitopes.pl
 ```
 cd ~/EpitopeEnumerator/src/dataPackage
 wget https://gembox.cbcb.umd.edu/shared/EpitopeEnumeratorData.tar.gz
-tar -xvzf EpitopeEnumeratorData.tar.gz .
+tar -xvzf EpitopeEnumeratorData.tar.gz
 ```
 
 ### External dependencies ###
@@ -152,11 +152,20 @@ Parameters:
 #### Overview of the algorithm ####
 For each GENCODE transcript (see below), the program searches for overlapping variants in the normal genome (from the "normal genome" input VCF) and projects the variant alleles onto the transcript sequence (intervening positions are assumed to be REF). We enumerate all possible transcript haplotypes (i.e., no attempt is made to phase variant alleles), and each possible transcript haplotype is translated into an amino acid string. In a final step, we enumerate all `x`-mers in the amino acid string (where `x` is the length of the epitopes we're looking for; this process is repeated for multiple values of `x`). This gives us the set of epitopes assumedly present in the normal genome.
 
+We then repeat this process for the cancer genome, with two caveats.
+
+First, for the cancer genome, we combine the "normal genome" and the "cancer genome" VCF files (giving precedence to the cancer variant calls at overlapping positions). The intuition behind this is that almost all germline variants will also be present in the tumour genome. In addition, when the cancer variant caller (e.g. MuTect) also infers the normal genome, we use this information when constructing the set of variants that goes into the normal-genome epitope enumeration process (that is: when we have normal-genome calls from the cancer calling pipeline, we integrate these normal-genome calls from the cancer VCF with the calls from the normal-genome VCF, giving precedence to the calls from the cancer VCF).
+
+Second, when searching for epitopes in the cancer genome, we typically require that each epitope of length `x` is surrounded by `y` amino acids either side. The intuition behind this is that we might not want to identify epitopes that are the very boundaries of transcripts, or epitopes the tumour-exclusive parts of which would sit at the very boundaries of the HLA peptide binding site. Put computationally, we search the cancer genome for epitopes of length `x` + 2 x `y`, and later require that the central motif of length `x` be not present in the normal genome (see next paragraph). The default setting is y = 2, and the details of this behaviour can be configured in the source code (see below).
+
+After haci
+In a final step, we subtract the set of epitopes occuring in the normal genome from the set of epitopes occuring in the cancer genome to obtain a set of cancer-exclusive epitopes.
+
 #### Important additional notes and caveats ####
-- We make the simplifying assumption that variants don't influence splicing. We also only use a subset of transcripts that code for well-defined protein products (this is likely sub-optimal because there is [evidence](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3013145/) that, for example, nonsense-mediated decay also contributes to epitope formation).
+- We make the simplifying assumption that variants don't influence splicing. We also only use a subset of transcripts that code for well-defined protein products (this is likely sub-optimal - see e.g. [William et al.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3013145/) for evidence that nonsense-mediated decay mechanisms can also contribute to epitope formation).
 - Specifically, we only use transcripts that: are classified as `CDS`; have `transcript_type` set to `protein_coding`; do NOT have a `gene_type` different from  `protein_coding`; do NOT have the `cds_start_NF` or `cds_end_NF` fields.
 - In default configuration, the program searches for epitopes of length 8, 9, 10, 11, 13, 14, 15, 16, 17 (+2 AAs "padding" in the tumour genome). This can be easily modified by modifying the `search_lengths` set in `EpitopeEnumerator.cpp` (and re-compiling).
-- In default mode, the program 
+- In default mode, the program only distinguishes between epitopes that are (conditional on the accuracy of the input VCFs and the appropriateness of the assumptions described above) certainly present and epitopes that are potentially present (corresponding to probability values of `1` and `-1` in the output file, see above). A model that computes, under the assumption of random linkage between input haplotypes, exact epitope probabilities has also been implemented, but due to computational limitations (this process becomes very slow for long genes) we have decided against exposing it on the command line.
 
 ### Select epitopes ###
 
