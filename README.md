@@ -2,7 +2,7 @@
 
 Computes (= enumerates) a list of peptide motifs (= epitopes) that could be used for creating a therapeutic cancer vaccine.
 
-The intention here is to provide a simple proof-of-concept implementation for demonstration - there are additional data sources that could/should be considered when designing an actual therapeutic vaccine. See the accompanying blog post for further discussion.
+The intention here is to provide a simple proof-of-concept implementation - there are additional data sources that could/should be considered when designing an actual therapeutic vaccine. See the accompanying blog post for further discussion.
 
 Input:
 - a GRCh38 VCF file describing the normal patient genome
