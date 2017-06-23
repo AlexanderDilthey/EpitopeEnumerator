@@ -39,12 +39,12 @@ Check that the Perl modules are functional:
 perl -c prepareSequencingReads.pl
 perl -c selectEpitopes.pl
 ```
-### Download the data package
+### Download the data package (7.3G)
 
 ```
 cd ~/EpitopeEnumerator/src/dataPackage
-wget URL_TO_DATA_PACKAGE
-tar -xvzf dataPackage.tar.gz .
+wget https://gembox.cbcb.umd.edu/shared/EpitopeEnumeratorData.tar.gz
+tar -xvzf EpitopeEnumeratorData.tar.gz .
 ```
 
 ### External dependencies ###
