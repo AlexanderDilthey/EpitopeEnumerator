@@ -130,13 +130,13 @@ From directory `~/EpitopeEnumerator/src/`:
 ```
 
 Output: a file `mySamplepeptides.txt`, containing a list of peptide epitopes. Description of the columns:
-- `peptide`: peptide string (amino acids)
-- `coreLength`: core peptide length (see below)
-- `additionalPadding`: non-core additional amino acids (eiter side of the core, see below)
-- `epitopeLocationIndex`: index over the locations that generated the peptide in the cancer genome
-- `chromosome`: chromosome of the printed locstion
-- `interesting`: a binary string that specifies the positions within the peptide string that correspond to cancer-unique mutations (there are some border cases in which this string cannot be computed correctly, in which case all positions are set to 0).
-- `positions`: for each amino acid listed in the peptide string, start and stop position in the cancer genome on the specified chromosome.
+- `peptide`: peptide string (amino acids).
+- `coreLength`: core peptide length (see below).
+- `additionalPadding`: non-core additional amino acids (eiter side of the core, see below).
+- `epitopeLocationIndex`: index over the locations that generated the peptide in the cancer genome. Always `0` unless there are multiple positions.
+- `chromosome`: chromosome of the peptide-generating location.
+- `interesting`: a binary string specifying the amino acids in the peptide string corresponding to cancer genome mutations (this is computed in a somewhat heuristic manner; sometimes the complete string will consist of `0` characters).
+- `positions`: genomic start and stop position for each amino acid in the peptide string (on `chromosome`; the value `-1` indicates insertions).
 - `epitopeMaxP_allLocations`: over all locations of the peptide string in the cancer genome, maximum probability of occurrence. Unless the program is used to exhaustively enumerate haplotypes, there are only two possible values: `1` for "certain" and `-1` for "maybe".
 
 Parameters:
