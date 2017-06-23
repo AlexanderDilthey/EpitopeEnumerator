@@ -185,9 +185,9 @@ Parameters:
 - `--useAll 1`: use this parameter if you want to use ALL peptides from the input file (the default setting is to use only peptides with a probability of 1).
 
 Output:
-- `myPrefix.peptides`: explicitly selected peptides (amino acid sequences)
-- `myPrefix.peptidesAsDNAWith2A`: peptide sequences translated into DNA (random codons to prevent homologous recombination in healthy cells) and linked with 2A sequences
-- `myPrefix.encodedPeptides.withPromotorAndTail`: peptides and 2A linkers in DNA, with CMV promotor and some polyA tail sequence
+- `myPrefix.peptides`: explicitly selected peptides (amino acid sequences).
+- `myPrefix.peptidesAsDNAWith2A`: peptide sequences translated into DNA (random codons to prevent homologous recombination in healthy cells) and linked with 2A sequences.
+- `myPrefix.encodedPeptides.withPromotorAndTail`: peptides and 2A linkers in DNA, with CMV promotor and some polyA tail sequence.
 - `myPrefix.completeGenome`: genome of Human Adenovirus 5, with E3 components substituted with the content of `myPrefix.encodedPeptides.withPromotorAndTail`.
 
 #### Computational background ####
@@ -195,7 +195,7 @@ Output:
 This script takes the set of cancer-exclusive peptides; for each such peptide, it uses NetMHCpan / NetMHCIIpan to predict how well the peptide would be presented by the patient's HLA proteins; finally, it tries to build a combined peptide string of a desired length, optimizing for presentability of the contained peptides.
 
 This process of building a combined peptide string S happens in a greedy manner:
-- set `S` = ''
+- set `S` = ''.
 - we sort the complete list of peptides (i.e. not distinguishing by peptide length) by how well they're predicted to bind to any of the patient's HLA molecules (i.e., for each peptide, we take the maximum presentation "probability" across all HLA types -- we use the output field `Rank` from NetMHCpan / NetMHCIIPan). Binding predictions are carried out for the core motif of the peptide, i.e., in the notation of the previous section, for the central string of length `x` amino acids.
 - we iterate through this sorted list and consider each peptide `peptide` in turn.
 - if length(`S` + `linker` + `peptide`) < desired_length, we set `S` = `S` + `linker` + `peptide`. `linker` is a sequence that we use to link multiple peptide epitopes (see below). If the just-added `peptide` contains one of the previously added components of `S` as a sub-string, we remove these previously added components of `S` from `S` before considering the next peptide in the sorted list.
