@@ -129,8 +129,15 @@ From directory `~/EpitopeEnumerator/src/`:
 ../bin/EpitopeEnumerator --action enumerate --prefix mySample --normalVCF /path/to/output/for/SAMPLE/normal/calls_filtered.pass.vcf --tumourVCF /path/to/output/for/SAMPLE/cancer/calls_somatic.vcf.filtered --transcripts dataPackage/gencode.v25.annotation.gff3 --referenceGenome dataPackage/hs38DH.fa --mutectVCFMode 1 
 ```
 
-Output:
-- A file `mySamplepeptides.txt`, containing a list of epitopes exlusive to the cancer.
+Output: a file `mySamplepeptides.txt`, containing a list of peptide epitopes. Description of the columns:
+- `peptide`: peptide string (amino acids)
+- `coreLength`: core peptide length (see below)
+- `additionalPadding`: non-core additional amino acids (eiter side of the core, see below)
+- `epitopeLocationIndex`: index over the locations that generated the peptide in the cancer genome
+- `chromosome`: chromosome of the printed locstion
+- `interesting`: a binary string that specifies the positions within the peptide string that correspond to cancer-unique mutations (there are some border cases in which this string cannot be computed correctly, in which case all positions are set to 0).
+- `positions`: for each amino acid listed in the peptide string, start and stop position in the cancer genome on the specified chromosome.
+- `epitopeMaxP_allLocations`: over all locations of the peptide string in the cancer genome, maximum probability of occurrence. Unless the program is used to exhaustively enumerate haplotypes, there are only two possible values: `1` for "certain" and `-1` for "maybe".
 
 Parameters:
 - `--action enumerate`: required for enumeration mode
@@ -152,6 +159,7 @@ perl selectEpitopes.pl --prefix mySample --HLAtypes ~/HLA-PRG-LA/working/mySampl
 Parameters:
 - `--prefix mySample`: prefix for input (`mySamplepeptides.txt`) and output files.
 - `--HLAtypes PATH`: path to sample HLA types in HLA\*PRG:LA format (see above).
+- `--useAll 1`: use this parameter if you want to use ALL peptides from the input file (the default setting is to use only peptides with a probability of 1).
 
 Output:
 - `myPrefix.peptides`: explicitly selected peptides (amino acid sequences)
