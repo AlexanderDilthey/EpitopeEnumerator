@@ -13,7 +13,7 @@ If you don't have up-to-date GRCh38 VCFs for your samples, there is also a utili
 
 ## Installation ##
 
-See (INSTALL.md)[https://github.com/AlexanderDilthey/EpitopeEnumerator/blob/master/INSTALL.md].
+See [INSTALL.md](https://github.com/AlexanderDilthey/EpitopeEnumerator/blob/master/INSTALL.md).
 
 ## Running EpitopeEnumerator ##
 
