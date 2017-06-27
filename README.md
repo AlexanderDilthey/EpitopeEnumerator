@@ -41,7 +41,7 @@ When successfully finished, the program should have produced the following two f
 
 ### Get sample HLA types ###
 
-For each sample, you need HLA types in the format of HLA\*PRG:LA.
+For each sample, you need HLA types in the format of [HLA\*PRG:LA](https://github.com/AlexanderDilthey/HLA-PRG-LA).
 
 #### Encoding existing types ####
 If you already have HLA types for your sample, you can encode these in the right format.
