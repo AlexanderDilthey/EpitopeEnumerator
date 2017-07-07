@@ -30,9 +30,10 @@ int main(int argc, char *argv[]) {
 
 	std::vector<std::string> ARG (argv + 1, argv + argc + !argc);
 	std::map<std::string, std::string> arguments;
-
+	
 	arguments["action"] = "testing";
 	arguments["mutectVCFMode"] = "0";
+	arguments["prefix"] = "";
 
 	for(unsigned int i = 0; i < ARG.size(); i++)
 	{
@@ -55,6 +56,10 @@ int main(int argc, char *argv[]) {
 		randomTests(1);
 		randomTests_withVariants(1);
 	}
+	else if(arguments.at("action") == "testBinary")
+	{
+		std::cout << "\n\nEpitopeEnumerator binary is functional.\n\n";
+	}	
 	else if(arguments.at("action") == "enumerate")
 	{
 		auto requireArgument = [&arguments](const std::string& name, bool checkExistence) -> void {
@@ -149,8 +154,11 @@ int main(int argc, char *argv[]) {
 
 		 */
 
+		 
+		std::string output_fn = arguments.at("prefix") + "peptides.txt";
+		 
 		std::ofstream file_output_stream;
-		file_output_stream.open("peptides.txt");
+		file_output_stream.open(output_fn.c_str());
 		file_output_stream << "peptide" << "\t" <<
 				"coreLength" << "\t" <<
 				"additionalPadding" << "\t" <<

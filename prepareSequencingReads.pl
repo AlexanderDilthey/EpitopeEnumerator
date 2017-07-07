@@ -10,7 +10,7 @@ use lib "$FindBin::Bin";
 use ini;
 $| = 1;
 
-my $paths_href = getIni();
+my $paths_href = getIni('all');
 
 my $normalBAM;
 my $cancerBAM;
@@ -21,7 +21,7 @@ GetOptions (
 	'normalBAM:s' => \$normalBAM,
 	'cancerBAM:s' => \$cancerBAM,
 	'outputDirectory:s' => \$outputDirectory,
-	'threads:s' => \$16,
+	'threads:s' => \$threads,
 );
 
 unless(($normalBAM) and (-e $normalBAM))
@@ -107,6 +107,7 @@ foreach my $cfg ([$normalBAM, $normalOutputDir, \$finalNormalBAM], [$cancerBAM, 
 
 my $finalNormalVCF = $normalOutputDir . '/calls_filtered.pass.vcf';
 my $finalCancerVCF = $cancerOutputDir . '/calls_somatic_filtered.vcf';
+
 {
 	my $VCFcalls = $normalOutputDir . '/calls.vcf';
 	my $SNPcalls = $normalOutputDir . '/calls.SNPs.vcf';
@@ -117,12 +118,25 @@ my $finalCancerVCF = $cancerOutputDir . '/calls_somatic_filtered.vcf';
 	my $VCFpass = $finalNormalVCF;
 	
 	my $cmd_haplotypecaller = qq($paths_href->{Java_bin_and_arguments} -jar $paths_href->{GATK_jar} -T HaplotypeCaller -R $paths_href->{HumanGenomeReference} -I $finalNormalBAM -o $VCFcalls);	
+	exc($cmd_haplotypecaller);
+
 	my $cmd_select1 = qq($paths_href->{Java_bin_and_arguments} -jar $paths_href->{GATK_jar} -T SelectVariants -R $paths_href->{HumanGenomeReference} -V $VCFcalls -selectType SNP -o $SNPcalls);
+	exc($cmd_select1);
+
 	my $cmd_select2 = qq($paths_href->{Java_bin_and_arguments} -jar $paths_href->{GATK_jar} -T SelectVariants -R $paths_href->{HumanGenomeReference} -V $VCFcalls -selectType INDEL -o $INDELcalls);
+	exc($cmd_select2);
+
 	my $cmd_filtration1 = qq($paths_href->{Java_bin_and_arguments} -jar $paths_href->{GATK_jar} -T VariantFiltration -R $paths_href->{HumanGenomeReference} -V $SNPcalls --filterExpression "QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0" --filterName "my_snp_filter" -o $SNPcallsFiltered);
+	exc($cmd_filtration1);
+
 	my $cmd_filtration2 = qq($paths_href->{Java_bin_and_arguments} -jar $paths_href->{GATK_jar} -T VariantFiltration -R $paths_href->{HumanGenomeReference} -V $INDELcalls --filterExpression "QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0" --filterName "my_indel_filter" -o $INDELcallsFiltered);
+	exc($cmd_filtration2);
+
 	my $cmd_combine = qq($paths_href->{Java_bin_and_arguments} -jar $paths_href->{GATK_jar} -T CombineVariants -R $paths_href->{HumanGenomeReference} -V $SNPcallsFiltered -V $INDELcallsFiltered -o $VCFcallsFiltered --genotypemergeoption UNIQUIFY);
+	exc($cmd_combine);
+	
 	my $cmd_PASS = qq(grep '\\(PASS\\)\\|\\(^#\\)' $VCFcallsFiltered > $VCFpass);
+	exc($cmd_PASS);
 	
 	# die join("\n\n", $cmd_haplotypecaller, $cmd_select1, $cmd_select2, $cmd_filtration1, $cmd_filtration2, $cmd_combine, $cmd_PASS);
 }
@@ -139,6 +153,9 @@ my $finalCancerVCF = $cancerOutputDir . '/calls_somatic_filtered.vcf';
 
 	# die join("\n\n", $cmd_call, $cmd_PASS);
 }
+
+die "Expected output file missing" unless(-e $finalNormalVCF);
+die "Expected output file missing" unless(-e $finalCancerVCF);
 
 print "\n\nProcessing done. Produced VCFs:\n";
 print "\t - $finalNormalVCF\n";
