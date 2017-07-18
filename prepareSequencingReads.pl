@@ -60,10 +60,13 @@ make_sure_ref_indexed($paths_href->{HumanGenomeReference}, $paths_href->{'bwa_bi
 
 my $finalNormalBAM;
 my $finalCancerBAM;
-foreach my $cfg ([$normalBAM, $normalOutputDir, \$finalNormalBAM], [$cancerBAM, $cancerOutputDir, \$finalCancerBAM])
+
+foreach my $cfg ([$normalBAM, $normalOutputDir, \$finalNormalBAM, 'N'], [$cancerBAM, $cancerOutputDir, \$finalCancerBAM, 'T'])
 {
 	my $inputBAM = $cfg->[0];
 	my $thisOutputDirectory = $cfg->[1];
+	my $newReadGroup = $cfg->[3];
+	die unless(defined $newReadGroup);
 	
 	my $r1 = $thisOutputDirectory . '/R1.fa';
 	my $r2 = $thisOutputDirectory . '/R2.fa';
@@ -87,7 +90,7 @@ foreach my $cfg ([$normalBAM, $normalOutputDir, \$finalNormalBAM], [$cancerBAM, 
 	my $cmd_index = qq($paths_href->{samtools_bin} index $rSortedBAM);
 	exc($cmd_index);
 
-	my $cmd_RG = qq($paths_href->{Java_bin_and_arguments} -jar $paths_href->{Picard_jar} AddOrReplaceReadGroups I=$rSortedBAM O=$rSortedBAMWithRG RGID=4 RGLB=lib1 RGPL=illumina RGPU=unit1 RGSM=T);
+	my $cmd_RG = qq($paths_href->{Java_bin_and_arguments} -jar $paths_href->{Picard_jar} AddOrReplaceReadGroups I=$rSortedBAM O=$rSortedBAMWithRG RGID=4 RGLB=lib1 RGPL=illumina RGPU=unit1 RGSM=$newReadGroup);
 	exc($cmd_RG);
 
 	my $cmd_index_2 = qq($paths_href->{samtools_bin} index $rSortedBAMWithRG);
