@@ -20,3 +20,14 @@ transcript_type/gene_type=protein_coding, nonsense_mediated_decay not used
 Treats VCFs as genome representations
 	E.g. when trying to find out which variants are tumour-only, we assume REF/REF if normal VCF doesn't specify anything
 	Will miss to mark variants as interesting that are e.g. NONREF/NONREF in normal and REF/REF in tumour unless specified in tumour VCF.
+	
+
+	
+	
+Core transcript length -- additional boundary
+Transcripts
+Haplotypes
+Splicing
+Make sure we're only using certain peptides
+
+

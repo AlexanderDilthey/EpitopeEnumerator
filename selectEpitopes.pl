@@ -6,11 +6,16 @@ use Getopt::Long;
 use List::Util qw/all/;
 use List::MoreUtils qw/mesh/;
 use Storable qw/store retrieve dclone/;
+use FindBin;
+use lib "$FindBin::Bin";
+use ini;
 
 $| = 1;
 
-my $netMHCpan_bin = qq(/data/projects/phillippy/projects/Vaccination/prediction/netMHCpan-3.0/netMHCpan);
-my $netMHCIIpan_bin = qq(/data/projects/phillippy/projects/Vaccination/prediction/netMHCIIpan-3.1/netMHCIIpan);
+my $paths_href = getIni('');
+
+my $netMHCpan_bin = $paths_href->{'netMHCpan_bin'};
+my $netMHCIIpan_bin = $paths_href->{'netMHCIIpan_bin'};
 
 die "NetMHCpan ($netMHCpan_bin) not executable - please check that path is specified correctly in Perl file" unless(-x $netMHCpan_bin);
 die "NetMHCIIpan ($netMHCIIpan_bin) not executable - please check that path is specified correctly in Perl file" unless(-x $netMHCIIpan_bin);
@@ -37,17 +42,18 @@ my $E3_end_1based = 30839;
 my $targetLength_nucleotides = ($E3_end_1based - $E3_begin_1based + 1) - (length($prepost_href->{pre}) + length($prepost_href->{post}));
 my $targetLength = $targetLength_nucleotides / 3;
 
-my $prefix = 'genome';
-
-my $peptides_file = 'peptides_intermediate.txt';
-my $HLAtypes = '/data/projects/phillippy/projects/MHC/HLA-PRG-LA/working/CASE_007_NORMAL_WEX/hla/R1_bestguess_G.txt';
+my $prefix = '';
+my $useAll = 0;
+my $HLAtypes = '';
 GetOptions (
-	'peptides_file:s' => \$peptides_file, 
 	'prefix:s' => \$prefix, 
 	'HLAtypes:s' => \$HLAtypes, 
+	'useAll:s' => \$useAll, 
 );
 
-die "Please specify output from C++ component via --peptides_file" unless(-e $peptides_file);
+my $peptides_file = $prefix . 'peptides.txt';
+
+die "Output from C++ component - file name $peptides_file - cannot be found. This file name is constructed as the string given by --prefix PLUS the string 'peptides.txt'" unless(-e $peptides_file);
 die "Please specify output from HLA*PRG:LA for normal genome via --HLAtypes" unless(-e $HLAtypes);
 
 my %lengths = (
@@ -73,12 +79,13 @@ foreach my $class (qw/classI classII/)
 	
 	foreach my $length (@{$lengths{$class}})
 	{
-		my $fn = $tmpDir . '/' . $class . '_' . $length . '.fa';
+		my $fn = $tmpDir . '/' . $prefix . $class . '_' . $length . '.fa';
 		open(OUT, '>', $fn) or die "Cannot open $fn";
 		open(PEPTIDES, '<', $peptides_file) or die "Cannot open file $peptides_file";
 		my $headerLine = <PEPTIDES>;
 		chomp($headerLine);
 		my @header_fields = split(/\t/, $headerLine);
+		my $took_peptides = 0;
 		while(<PEPTIDES>)
 		{
 			my $line = $_;
@@ -87,6 +94,10 @@ foreach my $class (qw/classI classII/)
 			my @line_fields = split(/\t/, $line);
 			die unless($#line_fields == $#header_fields);
 			my %line = (mesh @header_fields, @line_fields);
+			if(not $useAll)
+			{
+				 next unless($line{epitopeMaxP_allLocations} == 1);
+			}
 			if($line{coreLength} == $length)
 			{
 				my $additionalPadding = $line{additionalPadding};
@@ -94,11 +105,13 @@ foreach my $class (qw/classI classII/)
 				$peptide = substr($peptide, $additionalPadding, length($peptide) - 2 * $additionalPadding);
 				die unless(length($peptide) == $length);
 				print OUT '>', $peptide, "\n", $peptide, "\n";
+				$took_peptides++;
 			}
 		}
 		close(PEPTIDES);
 		close(OUT);
-		print "Produced file $fn -- now apply prediction algorithm!\n";
+		
+		print "Produced file $fn with $took_peptides peptides -- now apply prediction algorithm!\n";
 		
 		foreach my $HLAtype (@{$hla{$class}})
 		{
@@ -390,7 +403,8 @@ else
 }
 die unless($combined_nucleotide_sequence =~ /^[ACGT]+$/);
 
-my $fn_output_peptides = $prefix . '.encodedPeptides';
+my $fn_output_peptides = $prefix . '.peptides';
+my $fn_output_peptides_2A = $prefix . '.peptidesAsDNAWith2A';
 my $fn_output_withPromotorAndEnd = $prefix . '.encodedPeptides.withPromotorAndTail';
 my $fn_output_completeGenome = $prefix . '.completeGenome';
 
@@ -404,7 +418,11 @@ my $AD5_genome = (values %$AD5_href)[0];
 my $string_genome = $AD5_genome;
 substr($string_genome, $E3_begin_1based - 1, $E3_end_1based - $E3_begin_1based + 1) = $string_with_promotor;
 
-open(OUTPEP, '>', $fn_output_peptides) or die "Cannot open $fn_output_peptides";
+open(OUTP, '>', $fn_output_peptides) or die "Cannot open $fn_output_peptides";
+print OUTP join("\n", keys %selected_explicitly), "\n";
+close(OUTP);
+
+open(OUTPEP, '>', $fn_output_peptides_2A) or die "Cannot open $fn_output_peptides_2A";
 print OUTPEP $string_encoded_peptides, "\n";
 close(OUTPEP);
 
