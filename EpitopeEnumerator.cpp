@@ -80,10 +80,10 @@ int main(int argc, char *argv[]) {
 	}
 	else if(arguments.at("action") == "COVID")
 	{
-		bool chr21Test = true;
+		bool chr20Test = false;
 		if(!(arguments.count("referenceGenome") || arguments.count("transcripts")))
 		{
-			arguments["referenceGenome"] = chr21Test ? "data/GRCh38_full_analysis_set_plus_decoy_hla.fa.chr20" : "data/GRCh38_full_analysis_set_plus_decoy_hla.fa";
+			arguments["referenceGenome"] = chr20Test ? "data/GRCh38_full_analysis_set_plus_decoy_hla.fa.chr20" : "data/GRCh38_full_analysis_set_plus_decoy_hla.fa";
 			arguments["transcripts"] = "data/gencode.v26.annotation.gff3";
 			arguments["targets"] = "data/Spike_all.fa";
 		}
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
 				"sequences" << "\t" <<
 		"\n";
 
-		std::string limitToChr = chr21Test ? "chr21" : "";
+		std::string limitToChr = chr20Test ? "chr20" : "";
 		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"), limitToChr);
 
 		std::string expectedSequence_SPIKE_debug;
