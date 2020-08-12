@@ -23,6 +23,7 @@
 #include "enumerateEpitopes_noHaplotypePairs.h"
 #include "tests.h"
 #include "findEpitopeDifferences.h"
+#include "enumerateEpitopes_diff_pairs.h"
 
 using namespace std;
 
@@ -31,7 +32,7 @@ int main(int argc, char *argv[]) {
 	std::vector<std::string> ARG (argv + 1, argv + argc + !argc);
 	std::map<std::string, std::string> arguments;
 
-	arguments["action"] = "testing";
+	arguments["action"] = "COVID";
 	arguments["mutectVCFMode"] = "0";
 
 	for(unsigned int i = 0; i < ARG.size(); i++)
@@ -44,6 +45,24 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	auto requireArgument = [&arguments](const std::string& name, bool checkExistence) -> void {
+		if(! arguments.count(name))
+		{
+			std::cerr << "Please specify argument --" << name << "\n" << std::flush;
+			throw std::runtime_error("Missing argument.");
+		}
+		if(checkExistence)
+		{
+			std::ifstream testOpen;
+			testOpen.open(arguments.at(name).c_str());
+			if(!testOpen.is_open())
+			{
+				std::cerr << "The file " << arguments.at(name) << ", specified by --" << name << " cannot be opened - is this a valid path?" << std::flush;
+				throw std::runtime_error("File cannot be opened or does not exist.");
+			}
+		}
+	};
+
 	assert(arguments.count("action"));
 	if(arguments.at("action") == "testing")
 	{
@@ -55,26 +74,205 @@ int main(int argc, char *argv[]) {
 		randomTests(1);
 		randomTests_withVariants(1);
 	}
-	else if(arguments.at("action") == "enumerate")
+	else if(arguments.at("action") == "COVID")
 	{
-		auto requireArgument = [&arguments](const std::string& name, bool checkExistence) -> void {
-			if(! arguments.count(name))
+		bool chr21Test = true;
+		if(!(arguments.count("referenceGenome") || arguments.count("transcripts")))
+		{
+			arguments["referenceGenome"] = chr21Test ? "data/GRCh38_full_analysis_set_plus_decoy_hla.fa.chr20" : "data/GRCh38_full_analysis_set_plus_decoy_hla.fa";
+			arguments["transcripts"] = "data/gencode.v26.annotation.gff3";
+			arguments["targets"] = "data/Spike_all.fa";
+		}
+		requireArgument("referenceGenome", true);
+		requireArgument("transcripts", true);
+		requireArgument("targets", true);
+
+		std::cout << timestamp() << "Read reference genome.\n" << std::flush;
+		std::map<std::string, std::string> referenceGenome = readFASTA(arguments.at("referenceGenome"));
+		for(auto& r : referenceGenome)
+		{
+			std::transform(r.second.begin(), r.second.end(), r.second.begin(), ::toupper);
+			for(unsigned int pI = 0; pI < r.second.length(); pI++)
 			{
-				std::cerr << "Please specify argument --" << name << "\n" << std::flush;
-				throw std::runtime_error("Missing argument.");
-			}
-			if(checkExistence)
-			{
-				std::ifstream testOpen;
-				testOpen.open(arguments.at(name).c_str());
-				if(!testOpen.is_open())
+				char c = r.second.at(pI);
+				if(!((c == 'A') || (c == 'C') || (c == 'G') || (c == 'T') || (c == 'N')))
 				{
-					std::cerr << "The file " << arguments.at(name) << ", specified by --" << name << " cannot be opened - is this a valid path?" << std::flush;
-					throw std::runtime_error("File cannot be opened or does not exist.");
+					assert(!((c == 'a') || (c == 'c') || (c == 'g') || (c == 't') || (c == 'n')));
+					r.second.at(pI) = 'N';
 				}
 			}
-		};
+		}
 
+		std::cout << timestamp() << "Read targets.\n" << std::flush;
+		std::map<std::string, std::string> targets = readFASTA(arguments.at("targets"));
+
+
+		// empty variants
+		std::map<std::string, std::map<int, variantFromVCF>> variants;
+
+		// search lengths
+		std::set<std::pair<int, int>> search_lengths;
+		for(int l : {8, 9, 10, 11})
+		{
+			search_lengths.insert(make_pair(l, 0));
+		}
+
+		// find COVID-exclusive peptides
+		std::ofstream file_output_stream;
+		file_output_stream.open("covid_peptides.txt");
+		file_output_stream << "peptide" << "\t" <<
+				"coreLength" << "\t" <<
+				"additionalPadding" << "\t" <<
+				"positions" << "\t" <<
+				"sequences" << "\t" <<
+		"\n";
+
+		std::string limitToChr = chr21Test ? "chr21" : "";
+		std::vector<transcript> transcripts = readTranscripts(arguments.at("transcripts"), limitToChr);
+
+		std::string expectedSequence_SPIKE_debug;
+		for(auto sL : search_lengths)
+		{
+			int coreEpitopeLength = sL.first;
+			int additionalBuffer = sL.second;
+			std::cerr << "Search length " << coreEpitopeLength << "\n" << std::flush;
+			assert(additionalBuffer == 0); // not implemented for other values
+
+			transcripts = std::vector<transcript>(transcripts.begin(), transcripts.begin() + 10);
+			std::map<std::string, double> epitopes_normal = enumeratePeptideHaplotypes_baseLine(1, coreEpitopeLength, referenceGenome, transcripts, variants, false);
+			std::set<std::string> epitopes_normal_set;
+			for(auto oneEpitope : epitopes_normal)
+			{
+				epitopes_normal_set.insert(oneEpitope.first);
+			}
+
+			std::map<std::string, double> max_p_per_epitope;
+			std::map<std::string, std::map<std::string, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>> locations_per_epitope;
+
+			for(auto oneTarget : targets)
+			{
+				std::cerr << "\tTarget " << oneTarget.first << "\n" << std::flush;
+
+				transcript pseudoTranscript;
+				pseudoTranscript.chromosomeID = oneTarget.first;
+				pseudoTranscript.geneName = oneTarget.first;
+				pseudoTranscript.transcriptID = oneTarget.first + "001";
+				pseudoTranscript.strand = '+';
+				transcriptExon oneTranscriptExon;
+				oneTranscriptExon.firstPos = 0;
+				oneTranscriptExon.lastPos = oneTarget.second.length() - 1;
+				oneTranscriptExon.valid = true;
+				pseudoTranscript.exons = {oneTranscriptExon};
+
+				// double-check
+
+				std::string AAsequence = nucleotide2AA(oneTarget.second);
+				if(expectedSequence_SPIKE_debug.length() == 0)
+				{
+					expectedSequence_SPIKE_debug = AAsequence;
+				}
+				else
+				{
+					assert(expectedSequence_SPIKE_debug == AAsequence);
+				}
+
+				std::set<std::string> expectedPeptides_debug;
+				for(unsigned int i = 0; i < AAsequence.length(); i += coreEpitopeLength)
+				{
+					std::string peptide = AAsequence.substr(i, coreEpitopeLength);
+				}
+
+				// std::map<std::string, double> epitopes_this_transcript;
+				// epitopes_this_transcript = enumeratePeptideHaplotypes_baseLine_oneTranscript(coreEpitopeLength, pseudoTranscript, targets, variants);
+
+				std::vector<transcript> pseudoTranscripts({pseudoTranscript});
+				std::map<int, std::map<std::string, std::pair<double, std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>>>> p_per_epitope;
+				enumeratePeptideHaplotypes_improperFrequencies(targets, pseudoTranscripts, variants, {coreEpitopeLength}, p_per_epitope, &epitopes_normal_set, 0);
+
+				for(auto expectedEpitope : expectedPeptides_debug)
+				{
+					if(epitopes_normal_set.count(expectedEpitope) == 0)
+					{
+						assert(p_per_epitope.at(coreEpitopeLength).count(expectedEpitope));
+					}
+				}
+
+				for(auto foundEpitope : p_per_epitope.at(coreEpitopeLength))
+				{
+					std::string epitope = foundEpitope.first;
+					double maxP = foundEpitope.second.first;
+					const std::set<std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>>& locations = foundEpitope.second.second;
+
+					if(max_p_per_epitope.count(epitope) == 0)
+					{
+						max_p_per_epitope[epitope] = maxP;
+					}
+					else
+					{
+						if(max_p_per_epitope.at(epitope) < maxP)
+						{
+							max_p_per_epitope.at(epitope) = maxP;
+						}
+					}
+
+					for(auto location : locations)
+					{
+						locations_per_epitope[epitope][oneTarget.first].insert(location);
+					}
+				}
+			}
+
+			for(auto epitope_and_p : max_p_per_epitope)
+			{
+				const std::string& epitope = epitope_and_p.first;
+
+				std::string positions_str;
+				std::string sequences_str;
+
+				std::vector<std::string> positions_vec;
+				std::vector<std::string> sequences_vec;
+				for(auto locationsPerChromosome : locations_per_epitope.at(epitope))
+				{
+					const std::string& chromosomeID = locationsPerChromosome.first;
+					int min_pos = -1;
+					int max_pos = -1;
+					for(const std::pair<std::vector<std::pair<int, int>>, std::vector<bool>>& location : locations_per_epitope.at(epitope).at(chromosomeID))
+					{
+						for(auto position : location.first)
+						{
+							assert(position.first < position.second);
+							if((min_pos == -1) || (position.first < min_pos))
+							{
+								min_pos = position.first;
+							}
+							if((max_pos == -1) || (position.second > max_pos))
+							{
+								max_pos = position.second;
+							}
+						}
+					}
+
+					positions_vec.push_back(chromosomeID + ":" + std::to_string(min_pos) + "-" + std::to_string(max_pos));
+					std::string sequence = targets.at(chromosomeID).substr(min_pos, max_pos - min_pos + 1);
+					sequences_vec.push_back(sequence);
+
+					std::string toCheck_expectedPeptide = nucleotide2AA(sequence);
+					assert(epitope == toCheck_expectedPeptide);
+				}
+
+				positions_str = join(positions_vec, ";");
+				sequences_str = join(sequences_vec, ";");
+
+				file_output_stream <<epitope << "\t" <<
+					coreEpitopeLength << "\t" <<
+					additionalBuffer << "\t" <<
+					positions_str << "\t" <<
+					sequences_str << "\n";
+			}
+		}
+	}
+	else if(arguments.at("action") == "enumerate")
+	{
 		if(!(arguments.count("referenceGenome") || arguments.count("transcripts") || arguments.count("normalVCF") || arguments.count("tumourVCF")))
 		{
 			arguments["referenceGenome"] = "dataGRCh38_full_analysis_set_plus_decoy_hla.fa.chr20";

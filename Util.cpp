@@ -286,6 +286,18 @@ std::string translateAASequence2Codons(const std::string& AAs)
 	return forReturn;
 }
 
+std::string nucleotide2AA(const std::string& nucleotides)
+{
+	std::string AAsequence;
+	assert((nucleotides.length() % 3) == 0);
+	for(unsigned int i = 0; i < nucleotides.length(); i += 3)
+	{
+		std::string AA = translateCodon2AA(nucleotides.substr(i, 3));
+		assert(AA.length() == 1);
+		AAsequence.push_back(AA.at(0));
+	}
+	return AAsequence;
+}
 std::string translateCodon2AA(const std::string& codon)
 {
 	fillTranslationTables();
@@ -305,6 +317,22 @@ std::string translateCodon2AA(const std::string& codon)
 }
 
 
+
+std::string join(std::vector<std::string> parts, std::string delim)
+{
+	if(parts.size() == 0)
+		return "";
+
+	std::string ret = parts.at(0);
+
+	for(unsigned int i = 1; i < parts.size(); i++)
+	{
+		ret.append(delim);
+		ret.append(parts.at(i));
+	}
+
+	return ret;
+}
 
 std::string seq_reverse_complement(const std::string& sequence)
 {

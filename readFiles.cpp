@@ -178,7 +178,7 @@ std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VC
 	return forReturn;
 }
 
-std::vector<transcript> readTranscripts(std::string transcriptsFile)
+std::vector<transcript> readTranscripts(std::string transcriptsFile, std::string limitToChr)
 {
 	std::ifstream inputStream;
 	inputStream.open(transcriptsFile.c_str());
@@ -207,8 +207,8 @@ std::vector<transcript> readTranscripts(std::string transcriptsFile)
 			{
 				continue;
 			}
-			//if(line_fields.at(0) != "chr20") // todo remove
-			//	continue;
+			if(limitToChr.length() && (line_fields.at(0) != limitToChr))
+				continue;
 
 			if(line_fields.at(2) != "CDS")
 				continue;
@@ -428,6 +428,11 @@ std::vector<transcript> getMinusStrandTranscripts(const std::vector<transcript>&
 			t_minus.strand = '+';
 			t_minus.exons.resize(t.exons.size());
 
+			if(!(referenceGenome_minus.count(t.chromosomeID)))
+			{
+				std::cerr << "Minus-strand reference genome missing entry for " << t.chromosomeID << "\n" << std::flush;
+			}
+			assert(referenceGenome_minus.count(t.chromosomeID));
 			size_t referenceContigLength = referenceGenome_minus.at(t.chromosomeID).length();
 
 			// make sure exons go from right to left in non-overlapping fashion

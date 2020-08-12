@@ -47,7 +47,7 @@ public:
 };
 
 std::map<std::string, std::map<int, variantFromVCF>> readVariants(std::string VCF, const std::map<std::string, std::string>& referenceGenome, std::string sampleID = "");
-std::vector<transcript> readTranscripts(std::string transcriptsFile);
+std::vector<transcript> readTranscripts(std::string transcriptsFile, std::string limitToChr = "");
 
 std::vector<transcript> getPlusStrandTranscripts(const std::vector<transcript>& transcripts);
 std::vector<transcript> getMinusStrandTranscripts(const std::vector<transcript>& transcripts, const std::map<std::string, std::string>& referenceGenome_minus);

@@ -21,6 +21,8 @@ int StrtoI(const std::string& s);
 
 double randomDouble();
 
+std::string join(std::vector<std::string> parts, std::string delim);
+
 unsigned int randomNumber(unsigned int max_inclusive);
 std::string generateRandomNucleotideSequence(int length);
 
@@ -38,6 +40,7 @@ std::string removeGaps(const std::string& in);
 unsigned int countCharacters_noGaps(const std::string& S);
 
 void fillTranslationTables();
+std::string nucleotide2AA(const std::string& nucleotides);
 std::set<std::string> translateAA2Codon(const std::string& AA);
 std::string translateCodon2AA(const std::string& codon);
 char randomNucleotide();
